@@ -68,7 +68,7 @@ export const ScenarioSimulatorModal: React.FC<{ isOpen: boolean; onClose: () => 
               {simulated.newMarginLevel.toFixed(2)}%
             </span>
           </div>
-          <div className="w-full bg-dark-border rounded-full h-2.5 mt-2">
+          <div className="w-full bg-dark-border rounded-full h-2.5 mt-2 overflow-hidden transform-gpu">
             <div
               className={`h-2.5 rounded-full ${simulated.newMarginLevel > 100 ? 'bg-green-400' : 'bg-red-400'}`}
               style={{ width: `${Math.min(simulated.newMarginLevel, 200)}%` }}
