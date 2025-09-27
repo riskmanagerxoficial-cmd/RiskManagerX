@@ -1,15 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-
-interface MarketData {
-  [symbol: string]: {
-    price: number;
-  };
-}
+import { supabase } from '../lib/supabase';
+import { BASE_PRICES, MarketData } from '../services/finnhub';
 
 interface PriceContextType {
   marketData: MarketData;
   isLoading: boolean;
   error: string | null;
+  lastUpdate: string | null;
 }
 
 const PriceContext = createContext<PriceContextType | undefined>(undefined);
@@ -22,89 +19,76 @@ export const useMarketData = () => {
   return context;
 };
 
-const API_KEY = import.meta.env.VITE_FINNHUB_API_KEY;
-
-// Mapeamento de símbolos de exibição para símbolos da API Finnhub
-const SYMBOL_MAP: { [key: string]: string } = {
-  'XAU/USD': 'OANDA:XAU_USD',
-  'EUR/USD': 'OANDA:EUR_USD',
-  'GBP/USD': 'OANDA:GBP_USD',
-  'USD/JPY': 'OANDA:USD_JPY',
-};
-
-// Mapeamento reverso para analisar as mensagens recebidas
-const REVERSE_SYMBOL_MAP: { [key: string]: string } = Object.fromEntries(
-  Object.entries(SYMBOL_MAP).map(([key, value]) => [value, key])
-);
-
-const API_SYMBOLS = Object.values(SYMBOL_MAP);
-
 export const PriceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [marketData, setMarketData] = useState<MarketData>({
-    'XAU/USD': { price: 2350.00 },
-    'EUR/USD': { price: 1.0850 },
-    'GBP/USD': { price: 1.2700 },
-    'USD/JPY': { price: 155.00 },
-  });
+  const [marketData, setMarketData] = useState<MarketData>(BASE_PRICES);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!API_KEY || API_KEY === 'YOUR_API_KEY') {
-      setError('A chave da API da Finnhub não foi configurada. Usando dados simulados.');
-      setIsLoading(false);
-      return;
-    }
+    // Inicia com loading e dados base
+    setIsLoading(true);
+    setMarketData(BASE_PRICES);
 
-    const ws = new WebSocket(`wss://ws.finnhub.io?token=${API_KEY}`);
+    // Cria o canal de realtime
+    const channel = supabase.channel('market-prices');
 
-    ws.onopen = () => {
-      console.log('Conectado ao WebSocket da Finnhub.');
-      API_SYMBOLS.forEach(symbol => {
-        ws.send(JSON.stringify({ type: 'subscribe', symbol }));
-      });
-      setIsLoading(false);
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'trade' && data.data) {
-        data.data.forEach((trade: { s: string; p: number }) => {
-          const displaySymbol = REVERSE_SYMBOL_MAP[trade.s];
-          if (displaySymbol) {
-            setMarketData(prevData => ({
-              ...prevData,
-              [displaySymbol]: {
-                price: trade.p,
-              },
-            }));
-          }
-        });
+    // Define o que fazer ao receber um broadcast
+    channel.on(
+      'broadcast',
+      { event: 'prices-update' },
+      (payload) => {
+        const { data, timestamp } = payload.payload;
+        
+        if (data && Object.keys(data).length > 0) {
+          setMarketData(prevData => ({ ...prevData, ...data }));
+          setLastUpdate(timestamp);
+          setError(null); // Limpa erros anteriores se recebermos dados
+        }
+        
+        if (isLoading) {
+          setIsLoading(false);
+        }
       }
-    };
+    );
 
-    ws.onerror = (event) => {
-      console.error('Erro no WebSocket da Finnhub:', event);
-      setError('Erro ao conectar com a API de preços da Finnhub.');
-      setIsLoading(false);
-    };
+    // Inscreve-se no canal e trata o resultado
+    channel.subscribe((status, err) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('Inscrito no canal market-prices com sucesso!');
+        // O loading será setado para false quando o primeiro dado chegar
+      }
+      if (status === 'CHANNEL_ERROR') {
+        console.error('Falha ao se inscrever no canal:', err);
+        setError('Erro de conexão com o serviço de preços em tempo real.');
+        setIsLoading(false);
+      }
+      if (status === 'TIMED_OUT') {
+        console.error('Tempo de conexão esgotado.');
+        setError('A conexão com o serviço de preços expirou.');
+        setIsLoading(false);
+      }
+    });
 
-    ws.onclose = () => {
-      console.log('Desconectado do WebSocket da Finnhub.');
-    };
+    // Fallback: se não receber dados após 10 segundos, para de carregar
+    const fallbackTimer = setTimeout(() => {
+      if (isLoading) {
+        setIsLoading(false);
+        setError('Não foi possível obter preços em tempo real. Usando dados de fallback.');
+        console.warn('Fallback ativado: não foram recebidos dados do canal Realtime.');
+      }
+    }, 10000);
 
+    // Função de limpeza para desinscrever do canal
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        API_SYMBOLS.forEach(symbol => {
-          ws.send(JSON.stringify({ type: 'unsubscribe', symbol }));
-        });
-        ws.close();
-      }
+      clearTimeout(fallbackTimer);
+      supabase.removeChannel(channel);
+      console.log('Desinscrito do canal market-prices.');
     };
-  }, []);
+  }, []); // Executa apenas uma vez na montagem do componente
 
   return (
-    <PriceContext.Provider value={{ marketData, isLoading, error }}>
+    <PriceContext.Provider value={{ marketData, isLoading, error, lastUpdate }}>
       {children}
     </PriceContext.Provider>
   );

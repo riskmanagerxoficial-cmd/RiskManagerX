@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, Mail, Lock, User, CheckCircle } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -14,6 +14,7 @@ export const AuthForm: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showEmailSent, setShowEmailSent] = useState(false)
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -80,6 +81,7 @@ export const AuthForm: React.FC = () => {
     setIsLogin(!isLogin)
     setShowEmailSent(false)
     setFormData({ email: '', password: '', fullName: '' })
+    setAgreedToTerms(false)
   }
 
   return (
@@ -187,11 +189,41 @@ export const AuthForm: React.FC = () => {
               </button>
             </div>
 
+            {!isLogin && (
+              <div className="relative flex items-start space-x-3 pt-2">
+                <div className="flex items-center h-5">
+                  <input
+                    id="terms"
+                    aria-describedby="terms-description"
+                    name="terms"
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="h-4 w-4 text-neon-cyan bg-dark-card border-dark-border rounded focus:ring-neon-cyan"
+                  />
+                </div>
+                <div className="text-sm">
+                  <label htmlFor="terms" className="text-dark-muted">
+                    Li e concordo com os{' '}
+                    <Link to="/terms-of-service" target="_blank" rel="noopener noreferrer" className="font-medium text-neon-cyan hover:underline">
+                      Termos
+                    </Link>{' '}
+                    e o{' '}
+                    <Link to="/disclaimer" target="_blank" rel="noopener noreferrer" className="font-medium text-neon-cyan hover:underline">
+                      Aviso Legal
+                    </Link>
+                    .
+                  </label>
+                </div>
+              </div>
+            )}
+
             <Button
               type="submit"
               loading={loading}
               className="w-full"
               size="lg"
+              disabled={loading || (!isLogin && !agreedToTerms)}
             >
               {isLogin ? 'Entrar' : 'Criar Conta'}
             </Button>

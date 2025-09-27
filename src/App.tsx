@@ -7,6 +7,7 @@ import { LandingPage } from './components/landing/LandingPage'
 import { AuthForm } from './components/auth/AuthForm'
 import { Header } from './components/layout/Header'
 import { Dashboard } from './components/dashboard/Dashboard'
+import { AppFooter } from './components/layout/AppFooter'
 
 // Import new pages
 import { AboutPage } from './components/pages/AboutPage'
@@ -22,6 +23,7 @@ import { CommunityPage } from './components/pages/CommunityPage'
 import { CookiesPage } from './components/pages/CookiesPage'
 import { LGPDPage } from './components/pages/LGPDPage'
 import { APIPage } from './components/pages/APIPage'
+import { DisclaimerPage } from './components/pages/DisclaimerPage'
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth()
@@ -38,11 +40,12 @@ const AppContent: React.FC = () => {
   }
 
   const DashboardLayout = (
-    <div className="min-h-screen bg-dark-bg">
+    <div className="min-h-screen bg-dark-bg flex flex-col">
       <Header />
-      <main>
+      <main className="flex-grow">
         <Dashboard />
       </main>
+      <AppFooter />
     </div>
   );
 
@@ -68,6 +71,7 @@ const AppContent: React.FC = () => {
       <Route path="/cookies" element={<CookiesPage />} />
       <Route path="/lgpd" element={<LGPDPage />} />
       <Route path="/api-docs" element={<APIPage />} />
+      <Route path="/disclaimer" element={<DisclaimerPage />} />
     </Routes>
   )
 }

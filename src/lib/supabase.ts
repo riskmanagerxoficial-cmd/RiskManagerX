@@ -3,8 +3,15 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('As variáveis de ambiente do Supabase (VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY) não foram encontradas. Verifique seu arquivo .env.')
+if (
+  !supabaseUrl || supabaseUrl === 'YOUR_SUPABASE_URL' ||
+  !supabaseAnonKey || supabaseAnonKey === 'YOUR_SUPABASE_ANON_KEY'
+) {
+  console.error('As credenciais do Supabase não estão configuradas. Por favor, adicione VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY ao seu arquivo .env.')
+  // Lançamos um erro customizado mais amigável que não será mostrado em produção,
+  // mas evita que a aplicação quebre por erro da biblioteca Supabase.
+  // Em um ambiente de produção, você pode querer lidar com isso de forma diferente.
+  throw new Error('Configuração do Supabase incompleta. Verifique o console para mais detalhes.')
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)

@@ -25,8 +25,9 @@ const footerLinks = {
     { name: 'Comunidade', href: '/community' }
   ],
   legal: [
-    { name: 'Política de Privacidade', href: '/privacy-policy' },
     { name: 'Termos de Uso', href: '/terms-of-service' },
+    { name: 'Política de Privacidade', href: '/privacy-policy' },
+    { name: 'Aviso Legal', href: '/disclaimer' },
     { name: 'Cookies', href: '/cookies' },
     { name: 'LGPD', href: '/lgpd' }
   ]
@@ -152,7 +153,10 @@ export const Footer: React.FC = () => {
         <div className="border-t border-dark-border pt-8 mt-8">
           <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
             <p className="text-dark-muted text-sm">
-              © 2025 RiskManagerX. Todos os direitos reservados.
+              © 2025 RiskManagerX – Informações apenas para fins informativos.{' '}
+              <Link to="/disclaimer" className="underline hover:text-neon-cyan transition-colors">
+                Aviso Legal
+              </Link>
             </p>
             
             <div className="flex items-center space-x-4 text-sm text-dark-muted">
