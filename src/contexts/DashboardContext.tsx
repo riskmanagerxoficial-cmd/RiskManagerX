@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
 import { useMarketData } from './PriceContext';
+import { BASE_PRICES } from '../services/marketData';
 
 // Interfaces
 interface FormData {
   asset: string;
-  currentPrice: number;
   lotSize: number;
   leverage: number;
   accountBalance: number;
@@ -26,6 +26,7 @@ interface DashboardContextType {
   formData: FormData;
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
   calculation: CalculationResult;
+  currentPrice: number;
 }
 
 // Context Creation
@@ -40,44 +41,58 @@ export const useDashboard = () => {
   return context;
 };
 
+// Funções auxiliares para cálculos
+const getContractSize = (asset: string): number => {
+  if (asset === 'XAU/USD') return 100; // Ouro (100 onças por lote)
+  if (asset === 'AAPL' || asset === 'BTC/USD') return 1; // Ações e Cripto (1 unidade por lote)
+  return 100000; // Padrão para Forex
+};
+
+const getPointValue = (asset: string, lotSize: number): number => {
+  if (asset === 'AAPL' || asset === 'BTC/USD') {
+    // Para ações e cripto, o "valor do ponto" é o valor de um movimento de $1.
+    // Assumindo que 1 lote = 1 unidade (1 ação, 1 BTC), o valor é o próprio lote.
+    return lotSize;
+  }
+  // Lógica para Forex e Ouro (valor do pip)
+  return lotSize * (asset.includes('JPY') ? 1000 : 10);
+};
+
+
 // Provider
 export const DashboardProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { marketData } = useMarketData();
 
   const [formData, setFormData] = useState<FormData>({
     asset: 'XAU/USD',
-    currentPrice: marketData['XAU/USD']?.price || 2350.00,
     lotSize: 0.01,
     leverage: 100,
     accountBalance: 1000,
     stopOutLevel: 20,
   });
 
-  // Update current price when market data or asset changes
-  useEffect(() => {
-    const assetPrice = marketData[formData.asset]?.price;
-    if (assetPrice && assetPrice !== formData.currentPrice) {
-      setFormData(prev => ({ ...prev, currentPrice: assetPrice }));
-    }
-  }, [marketData, formData.asset, formData.currentPrice]);
+  const currentPrice = marketData[formData.asset]?.price || BASE_PRICES[formData.asset]?.price || 0;
 
   const calculation: CalculationResult = useMemo(() => {
-    const { currentPrice, lotSize, leverage, accountBalance, stopOutLevel } = formData;
+    const { lotSize, leverage, accountBalance, stopOutLevel, asset } = formData;
 
-    const contractSize = formData.asset === 'XAU/USD' ? 100 : 100000;
+    const contractSize = getContractSize(asset);
+    const pointValue = getPointValue(asset, lotSize); // "Pip Value" ou "Point Value"
+
     const contractValue = currentPrice * lotSize * contractSize;
     const marginRequired = contractValue > 0 && leverage > 0 ? contractValue / leverage : 0;
-    const pipValue = lotSize * (formData.asset.includes('JPY') ? 1000 : 10);
-
+    
     const freeMargin = accountBalance - marginRequired;
     const marginLevel = marginRequired > 0 ? (accountBalance / marginRequired) * 100 : 0;
 
-    const equity = accountBalance; // For simplicity, assuming no open P/L
+    const equity = accountBalance;
     const marginToStopOut = (stopOutLevel / 100) * marginRequired;
     const availableMarginToLose = equity - marginToStopOut;
     
-    const maxMovement = pipValue > 0 ? (availableMarginToLose / pipValue) : 0;
+    // "Max Movement" em pontos/pips
+    const maxMovement = pointValue > 0 ? (availableMarginToLose / pointValue) : 0;
 
+    // O preço que aciona o Stop Out
     const stopOutPrice = currentPrice > 0 ? currentPrice - (availableMarginToLose / (lotSize * contractSize)) : 0;
 
     const riskPercentage = accountBalance > 0 ? (marginRequired / accountBalance) * 100 : 0;
@@ -85,19 +100,20 @@ export const DashboardProvider: React.FC<{ children: ReactNode }> = ({ children 
     return {
       marginRequired,
       contractValue,
-      pipValue,
+      pipValue: pointValue, // Mantendo o nome da propriedade por compatibilidade
       maxMovement,
       riskPercentage,
       stopOutPrice,
       freeMargin,
       marginLevel,
     };
-  }, [formData]);
+  }, [formData, currentPrice]);
 
   const value = {
     formData,
     setFormData,
     calculation,
+    currentPrice,
   };
 
   return (

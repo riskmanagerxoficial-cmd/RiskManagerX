@@ -10,10 +10,15 @@ const SYMBOL_MAP: { [key: string]: string } = {
 };
 const API_SYMBOLS = Object.values(SYMBOL_MAP);
 
-// Headers para a resposta CORS
+// [CORREÇÃO FINAL E DEFINITIVA]
+// O erro "Failed to fetch" persistente indica que a requisição de preflight (OPTIONS)
+// do navegador está falhando devido a uma incompatibilidade de cabeçalhos.
+// Para resolver isso de forma conclusiva, usamos um wildcard (*) para permitir
+// quaisquer cabeçalhos que o cliente (navegador/WebContainer) decida enviar.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': '*', // Permite todos os cabeçalhos, resolvendo o problema de preflight.
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
 serve(async (_req) => {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calculator, AlertTriangle, TrendingUp, DollarSign, Save } from 'lucide-react';
+import { Calculator, AlertTriangle, TrendingUp, Save } from 'lucide-react';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -9,12 +9,12 @@ import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 
 export const RiskCalculator: React.FC = () => {
-  const { formData, setFormData, calculation } = useDashboard();
+  const { formData, setFormData, calculation, currentPrice } = useDashboard();
   const { user } = useAuth();
   const toast = useToast();
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleInputChange = (field: keyof typeof formData, value: string | number) => {
+  const handleInputChange = (field: keyof Omit<typeof formData, 'asset' | 'leverage'>, value: string | number) => {
     const numericValue = typeof value === 'string' ? parseFloat(value) : value;
     if (isNaN(numericValue) && value !== '') return;
     
@@ -39,7 +39,7 @@ export const RiskCalculator: React.FC = () => {
       const { error } = await supabase.from('simulations').insert({
         user_id: user.id,
         asset: formData.asset,
-        current_price: formData.currentPrice,
+        current_price: currentPrice,
         lot_size: formData.lotSize,
         leverage: formData.leverage,
         account_balance: formData.accountBalance,
@@ -68,6 +68,12 @@ export const RiskCalculator: React.FC = () => {
 
   const riskLevel = getRiskLevel(calculation.riskPercentage);
 
+  const getPriceFormatOptions = (asset: string) => {
+    if (asset.includes('JPY')) return { minimumFractionDigits: 3, maximumFractionDigits: 3 };
+    if (asset === 'AAPL' || asset === 'BTC/USD' || asset === 'XAU/USD') return { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+    return { minimumFractionDigits: 4, maximumFractionDigits: 4 };
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Formulário de Input */}
@@ -89,19 +95,17 @@ export const RiskCalculator: React.FC = () => {
               <option value="EUR/USD">EUR/USD</option>
               <option value="GBP/USD">GBP/USD</option>
               <option value="USD/JPY">USD/JPY</option>
+              <option value="BTC/USD">BTC/USD (Bitcoin)</option>
+              <option value="AAPL">AAPL (Apple Inc.)</option>
             </select>
           </div>
 
-          <div className="relative">
-            <Input
-              label="Preço Atual (USD)"
-              type="number"
-              step="0.01"
-              value={formData.currentPrice.toFixed(formData.asset.includes('JPY') ? 3 : 4)}
-              readOnly
-              className="bg-dark-bg/50"
-            />
-            <div className="absolute top-9 right-3 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+          <div>
+            <label className="block text-sm font-medium text-dark-text mb-2">Preço Atual (USD)</label>
+            <div className="relative w-full px-4 py-2.5 bg-dark-bg/50 border border-dark-border rounded-xl text-dark-text">
+              <span className="font-mono">{currentPrice.toLocaleString('en-US', getPriceFormatOptions(formData.asset))}</span>
+              <div className="absolute top-1/2 right-3 transform -translate-y-1/2 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            </div>
           </div>
 
           <Input
@@ -174,12 +178,12 @@ export const RiskCalculator: React.FC = () => {
           <div className="bg-dark-bg/50 rounded-xl p-4">
             <p className="text-sm text-dark-muted">Valor do Contrato</p>
             <p className="text-xl font-bold text-dark-text font-mono">
-              ${calculation.contractValue.toFixed(2)}
+              ${calculation.contractValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
 
           <div className="bg-dark-bg/50 rounded-xl p-4">
-            <p className="text-sm text-dark-muted">Valor por Pip</p>
+            <p className="text-sm text-dark-muted">Valor por Ponto/Pip</p>
             <p className="text-xl font-bold text-green-400 font-mono">
               ${calculation.pipValue.toFixed(2)}
             </p>
@@ -199,10 +203,10 @@ export const RiskCalculator: React.FC = () => {
             <p className="text-sm font-medium text-orange-400">Zona de Perigo</p>
           </div>
           <p className="text-sm text-dark-muted mb-2">
-            Movimento máximo contra: <span className="text-orange-400 font-mono">{calculation.maxMovement > 0 ? calculation.maxMovement.toFixed(0) : 'N/A'} pips</span>
+            Movimento máximo contra: <span className="text-orange-400 font-mono">{calculation.maxMovement > 0 ? calculation.maxMovement.toFixed(0) : 'N/A'} pips/pontos</span>
           </p>
           <p className="text-sm text-dark-muted">
-            Preço de Stop Out: <span className="text-red-400 font-mono">${calculation.stopOutPrice > 0 ? calculation.stopOutPrice.toFixed(formData.asset.includes('JPY') ? 3 : 4) : 'N/A'}</span>
+            Preço de Stop Out: <span className="text-red-400 font-mono">${calculation.stopOutPrice > 0 ? calculation.stopOutPrice.toLocaleString('en-US', getPriceFormatOptions(formData.asset)) : 'N/A'}</span>
           </p>
         </div>
 

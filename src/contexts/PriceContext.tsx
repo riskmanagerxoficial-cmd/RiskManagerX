@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
-import { BASE_PRICES, MarketData } from '../services/finnhub';
+import { BASE_PRICES, SUPPORTED_SYMBOLS, MarketData } from '../services/marketData';
 
 interface PriceContextType {
   marketData: MarketData;
@@ -26,66 +25,72 @@ export const PriceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
   useEffect(() => {
-    // Inicia com loading e dados base
-    setIsLoading(true);
-    setMarketData(BASE_PRICES);
+    const apiKey = import.meta.env.VITE_TWELVE_DATA_API_KEY;
 
-    // Cria o canal de realtime
-    const channel = supabase.channel('market-prices');
+    if (!apiKey || apiKey === 'YOUR_API_KEY') {
+      const errorMessage = 'A chave da API da Twelve Data não está configurada no arquivo .env.';
+      console.error(`[PriceContext] ${errorMessage}`);
+      setError(errorMessage);
+      setIsLoading(false);
+      return;
+    }
 
-    // Define o que fazer ao receber um broadcast
-    channel.on(
-      'broadcast',
-      { event: 'prices-update' },
-      (payload) => {
-        const { data, timestamp } = payload.payload;
-        
-        if (data && Object.keys(data).length > 0) {
-          setMarketData(prevData => ({ ...prevData, ...data }));
-          setLastUpdate(timestamp);
-          setError(null); // Limpa erros anteriores se recebermos dados
+    const fetchPrices = async () => {
+      console.log('[PriceContext] Buscando preços na Twelve Data API...');
+      const symbols = SUPPORTED_SYMBOLS.join(',');
+      const url = `https://api.twelvedata.com/price?symbol=${symbols}&apikey=${apiKey}`;
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const newMarketData: MarketData = {};
+
+        // A API retorna um objeto único para um símbolo ou um objeto de objetos para múltiplos
+        if (SUPPORTED_SYMBOLS.length === 1) {
+          const symbol = SUPPORTED_SYMBOLS[0];
+          if (data.price) {
+            newMarketData[symbol] = { price: parseFloat(data.price) };
+          }
+        } else {
+          for (const symbol of SUPPORTED_SYMBOLS) {
+            if (data[symbol] && data[symbol].price) {
+              newMarketData[symbol] = { price: parseFloat(data[symbol].price) };
+            }
+          }
         }
         
+        if (Object.keys(newMarketData).length > 0) {
+          console.log('[PriceContext] Preços recebidos:', newMarketData);
+          setMarketData(prevData => ({ ...prevData, ...newMarketData }));
+          setLastUpdate(new Date().toISOString());
+          setError(null);
+        } else {
+          throw new Error('A resposta da API não continha dados de preço válidos.');
+        }
+
+      } catch (err: any) {
+        console.error('[PriceContext] Falha ao buscar preços:', err.message);
+        setError('Não foi possível buscar novos preços. Usando últimos dados válidos.');
+      } finally {
         if (isLoading) {
           setIsLoading(false);
         }
       }
-    );
-
-    // Inscreve-se no canal e trata o resultado
-    channel.subscribe((status, err) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('Inscrito no canal market-prices com sucesso!');
-        // O loading será setado para false quando o primeiro dado chegar
-      }
-      if (status === 'CHANNEL_ERROR') {
-        console.error('Falha ao se inscrever no canal:', err);
-        setError('Erro de conexão com o serviço de preços em tempo real.');
-        setIsLoading(false);
-      }
-      if (status === 'TIMED_OUT') {
-        console.error('Tempo de conexão esgotado.');
-        setError('A conexão com o serviço de preços expirou.');
-        setIsLoading(false);
-      }
-    });
-
-    // Fallback: se não receber dados após 10 segundos, para de carregar
-    const fallbackTimer = setTimeout(() => {
-      if (isLoading) {
-        setIsLoading(false);
-        setError('Não foi possível obter preços em tempo real. Usando dados de fallback.');
-        console.warn('Fallback ativado: não foram recebidos dados do canal Realtime.');
-      }
-    }, 10000);
-
-    // Função de limpeza para desinscrever do canal
-    return () => {
-      clearTimeout(fallbackTimer);
-      supabase.removeChannel(channel);
-      console.log('Desinscrito do canal market-prices.');
     };
-  }, []); // Executa apenas uma vez na montagem do componente
+
+    fetchPrices(); // Executa imediatamente ao carregar
+    const pollInterval = setInterval(fetchPrices, 60000); // E depois a cada 60 segundos
+
+    return () => {
+      console.log('[PriceContext] Limpando o intervalo de polling.');
+      clearInterval(pollInterval);
+    };
+  }, []); // O array vazio garante que o efeito rode apenas uma vez
 
   return (
     <PriceContext.Provider value={{ marketData, isLoading, error, lastUpdate }}>

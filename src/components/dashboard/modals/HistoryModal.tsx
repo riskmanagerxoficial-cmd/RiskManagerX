@@ -43,14 +43,16 @@ export const HistoryModal: React.FC<{ isOpen: boolean; onClose: () => void }> = 
   }, [isOpen, user]);
 
   const handleReloadSimulation = (sim: Simulation) => {
-    setFormData({
+    // [REFACTOR] Do not set currentPrice from history.
+    // The context will automatically pick up the live price for the selected asset.
+    setFormData(prev => ({
+      ...prev,
       asset: sim.asset,
-      currentPrice: sim.current_price,
       lotSize: sim.lot_size,
       leverage: sim.leverage,
       accountBalance: sim.account_balance,
-      stopOutLevel: 20, // Defaulting as it's not saved
-    });
+      stopOutLevel: prev.stopOutLevel, // Keep the user's current Stop Out setting
+    }));
     toast.info('Simulação recarregada na calculadora.');
     onClose();
   };

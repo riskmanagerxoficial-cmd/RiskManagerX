@@ -3,14 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+// Verificação robusta para garantir que as variáveis de ambiente são válidas
 if (
-  !supabaseUrl || supabaseUrl === 'YOUR_SUPABASE_URL' ||
-  !supabaseAnonKey || supabaseAnonKey === 'YOUR_SUPABASE_ANON_KEY'
+  !supabaseUrl || !supabaseUrl.startsWith('http') ||
+  !supabaseAnonKey
 ) {
-  console.error('As credenciais do Supabase não estão configuradas. Por favor, adicione VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY ao seu arquivo .env.')
-  // Lançamos um erro customizado mais amigável que não será mostrado em produção,
-  // mas evita que a aplicação quebre por erro da biblioteca Supabase.
-  // Em um ambiente de produção, você pode querer lidar com isso de forma diferente.
+  console.error('As credenciais do Supabase estão ausentes ou são inválidas. Verifique seu arquivo .env e certifique-se de que VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY estão definidos corretamente.')
   throw new Error('Configuração do Supabase incompleta. Verifique o console para mais detalhes.')
 }
 
