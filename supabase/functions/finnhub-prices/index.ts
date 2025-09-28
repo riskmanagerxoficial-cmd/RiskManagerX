@@ -1,80 +1,71 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// Mapeamento de símbolos de exibição para símbolos da API Finnhub
-const SYMBOL_MAP: { [key: string]: string } = {
-  'XAU/USD': 'OANDA:XAU_USD',
-  'EUR/USD': 'OANDA:EUR_USD',
-  'GBP/USD': 'OANDA:GBP_USD',
-  'USD/JPY': 'OANDA:USD_JPY',
-};
-const API_SYMBOLS = Object.values(SYMBOL_MAP);
+const SUPPORTED_SYMBOLS = [
+  'XAU/USD',
+  'EUR/USD',
+  'GBP/USD',
+  'USD/JPY',
+  'BTC/USD',
+  'AAPL',
+];
 
-// [CORREÇÃO FINAL E DEFINITIVA]
-// O erro "Failed to fetch" persistente indica que a requisição de preflight (OPTIONS)
-// do navegador está falhando devido a uma incompatibilidade de cabeçalhos.
-// Para resolver isso de forma conclusiva, usamos um wildcard (*) para permitir
-// quaisquer cabeçalhos que o cliente (navegador/WebContainer) decida enviar.
+// [CORREÇÃO] Adicionados cabeçalhos para instruir o navegador e CDNs a nunca armazenarem a resposta.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': '*', // Permite todos os cabeçalhos, resolvendo o problema de preflight.
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Cache-Control': 'no-cache, no-store, must-revalidate', // Garante que a resposta nunca seja cacheada
+  'Pragma': 'no-cache', // Para compatibilidade com HTTP/1.0
+  'Expires': '0', // Para compatibilidade com proxies antigos
 }
 
-serve(async (_req) => {
-  // Handle CORS preflight requests
-  if (_req.method === 'OPTIONS') {
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  if (req.method !== 'GET') {
+    return new Response(JSON.stringify({ error: 'Método não permitido. Use GET.' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 405,
+    })
+  }
+
   try {
-    // Obter chaves de ambiente
-    const finnhubApiKey = Deno.env.get('FINNHUB_API_KEY')
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-
-    if (!finnhubApiKey || !supabaseUrl || !supabaseServiceRoleKey) {
-      throw new Error('Variáveis de ambiente ausentes: FINNHUB_API_KEY, SUPABASE_URL, ou SUPABASE_SERVICE_ROLE_KEY')
+    const twelveDataApiKey = Deno.env.get('TWELVE_DATA_API_KEY')
+    if (!twelveDataApiKey) {
+      throw new Error('A variável de ambiente TWELVE_DATA_API_KEY não está configurada na Supabase.')
     }
 
-    // Criar cliente Supabase com a chave de serviço para ter permissões de broadcast
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey)
+    const symbols = SUPPORTED_SYMBOLS.join(',');
+    const url = `https://api.twelvedata.com/price?symbol=${symbols}&apikey=${twelveDataApiKey}`;
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Erro na API da Twelve Data: ${response.status}`);
+    }
 
-    // Buscar preços para todos os símbolos de uma vez
-    const pricePromises = API_SYMBOLS.map(symbol =>
-      fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubApiKey}`)
-        .then(res => res.json())
-        .then(data => ({ symbol: symbol, price: data.c })) // 'c' é o preço atual (current price)
-    );
-
-    const prices = await Promise.all(pricePromises);
-
-    // Formatar os dados para o broadcast
+    const data = await response.json();
+    
     const marketData: { [key: string]: { price: number } } = {};
-    const reverseSymbolMap = Object.fromEntries(Object.entries(SYMBOL_MAP).map(([k, v]) => [v, k]));
-
-    prices.forEach(item => {
-      const displaySymbol = reverseSymbolMap[item.symbol];
-      if (displaySymbol && item.price) {
-        marketData[displaySymbol] = { price: item.price };
+    for (const symbol of SUPPORTED_SYMBOLS) {
+      // A API retorna um objeto único se for um símbolo, ou um objeto com chaves se forem múltiplos.
+      const priceData = SUPPORTED_SYMBOLS.length === 1 ? data : data[symbol];
+      if (priceData && priceData.price && !isNaN(parseFloat(priceData.price))) {
+        marketData[symbol] = { price: parseFloat(priceData.price) };
       }
-    });
-
-    // Se obtivemos algum dado, fazer o broadcast
-    if (Object.keys(marketData).length > 0) {
-      const channel = supabaseAdmin.channel('market-prices');
-      await channel.send({
-        type: 'broadcast',
-        event: 'prices-update',
-        payload: { data: marketData, timestamp: new Date().toISOString() },
-      });
-      console.log('Broadcast de preços enviado:', marketData);
     }
 
-    return new Response(JSON.stringify({ success: true, data: marketData }), {
+    if (Object.keys(marketData).length === 0) {
+      throw new Error('A resposta da API da Twelve Data não continha dados de preço válidos.');
+    }
+
+    return new Response(JSON.stringify(marketData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
+
   } catch (error) {
     console.error('Erro na Edge Function:', error.message);
     return new Response(JSON.stringify({ error: error.message }), {
