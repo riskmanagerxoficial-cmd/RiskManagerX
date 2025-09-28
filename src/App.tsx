@@ -25,6 +25,7 @@ import { LGPDPage } from './components/pages/LGPDPage'
 import { APIPage } from './components/pages/APIPage'
 import { DisclaimerPage } from './components/pages/DisclaimerPage'
 import { GrowthSimulatorPage } from './components/pages/GrowthSimulatorPage'
+import { TradingJournalPage } from './components/pages/TradingJournalPage'
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth()
@@ -60,6 +61,8 @@ const AppContent: React.FC = () => {
 
       <Route path="/growth-simulator" element={user ? <GrowthSimulatorPage /> : <Navigate to="/auth" replace />} />
       
+      <Route path="/journal" element={user ? <TradingJournalPage /> : <Navigate to="/auth" replace />} />
+
       {/* Footer Pages Routes */}
       <Route path="/about" element={<AboutPage />} />
       <Route path="/contact" element={<ContactPage />} />

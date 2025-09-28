@@ -12,7 +12,7 @@ if (
   throw new Error('Configuração do Supabase incompleta. Verifique o console para mais detalhes.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
 
 export type Database = {
   public: {
@@ -102,6 +102,50 @@ export type Database = {
           created_at?: string
         }
       }
+      trades: {
+        Row: {
+          id: string
+          user_id: string
+          created_at: string
+          trade_date: string
+          asset: string
+          direction: 'buy' | 'sell'
+          lot_size: number
+          entry_price: number
+          stop_loss: number | null
+          take_profit: number | null
+          result_usd: number
+          notes: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          trade_date?: string
+          asset: string
+          direction: 'buy' | 'sell'
+          lot_size: number
+          entry_price: number
+          stop_loss?: number | null
+          take_profit?: number | null
+          result_usd: number
+          notes?: string | null
+        }
+        Update: {
+          id?: string
+          trade_date?: string
+          asset?: string
+          direction?: 'buy' | 'sell'
+          lot_size?: number
+          entry_price?: number
+          stop_loss?: number | null
+          take_profit?: number | null
+          result_usd?: number
+          notes?: string | null
+        }
+      }
+    }
+    Enums: {
+      trade_direction: 'buy' | 'sell'
     }
   }
 }

@@ -1,0 +1,127 @@
+import React, { useState, useMemo } from 'react';
+import { Database } from '../../lib/supabase';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { FileDown, Filter } from 'lucide-react';
+import { format } from 'date-fns';
+import { utils, writeFile } from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
+type Trade = Database['public']['Tables']['trades']['Row'];
+
+interface TradesTableProps {
+  trades: Trade[];
+}
+
+export const TradesTable: React.FC<TradesTableProps> = ({ trades }) => {
+  const [filter, setFilter] = useState('');
+  const [assetFilter, setAssetFilter] = useState('all');
+
+  const filteredTrades = useMemo(() => {
+    return trades.filter(trade => {
+      const assetMatch = assetFilter === 'all' || trade.asset === assetFilter;
+      const textMatch = filter === '' ||
+        trade.asset.toLowerCase().includes(filter.toLowerCase()) ||
+        trade.notes?.toLowerCase().includes(filter.toLowerCase());
+      return assetMatch && textMatch;
+    });
+  }, [trades, filter, assetFilter]);
+
+  const uniqueAssets = useMemo(() => [...new Set(trades.map(t => t.asset))], [trades]);
+
+  const handleExport = (formatType: 'csv' | 'excel' | 'pdf') => {
+    const data = filteredTrades.map(t => ({
+      Data: format(new Date(t.trade_date), 'dd/MM/yyyy HH:mm'),
+      Ativo: t.asset,
+      Direção: t.direction,
+      Lote: t.lot_size,
+      'Resultado (USD)': t.result_usd,
+      Notas: t.notes || '',
+    }));
+
+    if (formatType === 'excel') {
+      const ws = utils.json_to_sheet(data);
+      const wb = utils.book_new();
+      utils.book_append_sheet(wb, ws, 'Operações');
+      writeFile(wb, 'diario_de_trading.xlsx');
+    } else if (formatType === 'pdf') {
+      const doc = new jsPDF();
+      doc.text('Diário de Trading', 14, 16);
+      (doc as any).autoTable({
+        head: [Object.keys(data[0])],
+        body: data.map(Object.values),
+        startY: 20,
+      });
+      doc.save('diario_de_trading.pdf');
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-dark-muted" />
+            <Input
+              type="text"
+              placeholder="Filtrar por ativo ou notas..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="pl-9 w-64"
+            />
+          </div>
+          <select
+            value={assetFilter}
+            onChange={(e) => setAssetFilter(e.target.value)}
+            className="px-4 py-2.5 bg-dark-card border border-dark-border rounded-xl text-dark-text focus:outline-none focus:ring-2 focus:ring-neon-blue/50 focus:border-neon-blue"
+          >
+            <option value="all">Todos os Ativos</option>
+            {uniqueAssets.map(asset => (
+              <option key={asset} value={asset}>{asset}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => handleExport('excel')}>
+            <FileDown className="w-4 h-4 mr-2" />
+            Exportar
+          </Button>
+        </div>
+      </div>
+      <div className="overflow-x-auto max-h-[500px]">
+        <table className="w-full text-sm text-left">
+          <thead className="text-xs text-dark-muted uppercase bg-dark-bg/80 backdrop-blur-sm sticky top-0">
+            <tr>
+              <th scope="col" className="px-4 py-3">Data</th>
+              <th scope="col" className="px-4 py-3">Ativo</th>
+              <th scope="col" className="px-4 py-3">Direção</th>
+              <th scope="col" className="px-4 py-3">Lote</th>
+              <th scope="col" className="px-4 py-3">Resultado (USD)</th>
+              <th scope="col" className="px-4 py-3">Notas</th>
+            </tr>
+          </thead>
+          <tbody className="text-dark-text">
+            {filteredTrades.map((trade) => (
+              <tr key={trade.id} className="border-b border-dark-border hover:bg-dark-card/50">
+                <td className="px-4 py-3 text-dark-muted">{format(new Date(trade.trade_date), 'dd/MM/yy HH:mm')}</td>
+                <td className="px-4 py-3 font-medium">{trade.asset}</td>
+                <td className={`px-4 py-3 font-medium ${trade.direction === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
+                  {trade.direction === 'buy' ? 'Compra' : 'Venda'}
+                </td>
+                <td className="px-4 py-3 font-mono text-dark-muted">{trade.lot_size}</td>
+                <td className={`px-4 py-3 font-mono font-bold ${trade.result_usd >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {trade.result_usd.toFixed(2)}
+                </td>
+                <td className="px-4 py-3 text-dark-muted max-w-xs truncate">{trade.notes}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filteredTrades.length === 0 && (
+          <div className="text-center py-12 text-dark-muted">Nenhuma operação encontrada.</div>
+        )}
+      </div>
+    </div>
+  );
+};

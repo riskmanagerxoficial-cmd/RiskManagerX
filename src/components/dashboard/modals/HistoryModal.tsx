@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '../../ui/Modal';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase, Database } from '../../../lib/supabase';
@@ -9,53 +9,62 @@ import { useToast } from '../../../contexts/ToastContext';
 type Simulation = Database['public']['Tables']['simulations']['Row'];
 
 export const HistoryModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { setFormData } = useDashboard();
   const toast = useToast();
   const [simulations, setSimulations] = useState<Simulation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen && user) {
-      const fetchHistory = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          const { data, error } = await supabase
-            .from('simulations')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(20);
-
-          if (error) throw error;
-          setSimulations(data || []);
-        } catch (err: any) {
-          setError('Falha ao carregar o histórico. Tente novamente.');
-          console.error(err);
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchHistory();
-    }
-  }, [isOpen, user]);
-
   const handleReloadSimulation = (sim: Simulation) => {
-    // [REFACTOR] Do not set currentPrice from history.
-    // The context will automatically pick up the live price for the selected asset.
     setFormData(prev => ({
       ...prev,
       asset: sim.asset,
       lotSize: sim.lot_size,
       leverage: sim.leverage,
       accountBalance: sim.account_balance,
-      stopOutLevel: prev.stopOutLevel, // Keep the user's current Stop Out setting
+      stopOutLevel: prev.stopOutLevel,
     }));
     toast.info('Simulação recarregada na calculadora.');
     onClose();
   };
+
+  const fetchHistory = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: dbError } = await supabase
+        .from('simulations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (dbError) throw dbError;
+      setSimulations(data || []);
+    } catch (err: any) {
+      if (err?.code === 'PGRST303' || err?.message?.includes('JWT expired')) {
+        setError('Sua sessão expirou. Você será desconectado.');
+        toast.error('Sessão expirada', 'Por favor, faça login novamente.');
+        setTimeout(() => {
+          onClose();
+          signOut();
+        }, 3000);
+      } else {
+        setError('Falha ao carregar o histórico. Tente novamente.');
+        console.error(err);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [user, signOut, toast, onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchHistory();
+    }
+  }, [isOpen, fetchHistory]);
 
   const renderContent = () => {
     if (loading) {

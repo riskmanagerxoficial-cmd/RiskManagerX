@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, LogOut, ChevronDown, BarChart2 } from 'lucide-react'
+import { User, LogOut, ChevronDown, BarChart2, BookOpen } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Logo } from '../ui/Logo'
 
@@ -74,6 +74,14 @@ export const Header: React.FC = () => {
                       <p className="text-xs text-dark-muted truncate">{user.email}</p>
                     </div>
                     <div className="w-full h-px bg-dark-border my-1"></div>
+                    <Link
+                      to="/journal"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="w-full flex items-center text-left p-2 rounded-md text-sm text-dark-text hover:bg-dark-border transition-colors"
+                    >
+                      <BookOpen className="w-4 h-4 mr-2 text-neon-blue" />
+                      Diário de Trading
+                    </Link>
                     <Link
                       to="/growth-simulator"
                       onClick={() => setIsMenuOpen(false)}

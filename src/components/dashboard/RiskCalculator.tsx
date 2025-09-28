@@ -11,7 +11,7 @@ import { useMarketData } from '../../contexts/PriceContext';
 
 export const RiskCalculator: React.FC = () => {
   const { formData, setFormData, calculation, currentPrice } = useDashboard();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const toast = useToast();
   const [isSaving, setIsSaving] = useState(false);
   
@@ -82,7 +82,12 @@ export const RiskCalculator: React.FC = () => {
 
       toast.success('Simulação salva com sucesso!');
     } catch (error: any) {
-      toast.error('Erro ao salvar simulação', error.message);
+      if (error?.code === 'PGRST303' || error?.message?.includes('JWT expired')) {
+        toast.error('Sessão expirada', 'Não foi possível salvar. Faça login novamente.');
+        setTimeout(() => signOut(), 3000);
+      } else {
+        toast.error('Erro ao salvar simulação', error.message);
+      }
     } finally {
       setIsSaving(false);
     }
