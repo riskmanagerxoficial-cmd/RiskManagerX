@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Calculator, AlertTriangle, TrendingUp, Save } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calculator, AlertTriangle, TrendingUp, Save, RefreshCw } from 'lucide-react';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -7,12 +7,40 @@ import { supabase } from '../../lib/supabase';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { useMarketData } from '../../contexts/PriceContext';
 
 export const RiskCalculator: React.FC = () => {
   const { formData, setFormData, calculation, currentPrice } = useDashboard();
   const { user } = useAuth();
   const toast = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  
+  const { refreshPrices, isLoading: isPriceLoading, lastUpdate } = useMarketData();
+  const [timeSinceUpdate, setTimeSinceUpdate] = useState('...');
+
+  useEffect(() => {
+    const updateDisplay = () => {
+        if (lastUpdate) {
+            const now = new Date();
+            const seconds = Math.round((now.getTime() - lastUpdate.getTime()) / 1000);
+            if (seconds < 2) {
+              setTimeSinceUpdate('agora');
+            } else if (seconds < 60) {
+                setTimeSinceUpdate(`há ${seconds}s`);
+            } else {
+                const minutes = Math.round(seconds / 60);
+                setTimeSinceUpdate(`há ${minutes}min`);
+            }
+        } else {
+            setTimeSinceUpdate('...');
+        }
+    };
+
+    updateDisplay();
+    const intervalId = setInterval(updateDisplay, 5000); // Update every 5 seconds
+
+    return () => clearInterval(intervalId);
+  }, [lastUpdate]);
 
   const handleInputChange = (field: keyof Omit<typeof formData, 'asset' | 'leverage'>, value: string | number) => {
     const numericValue = typeof value === 'string' ? parseFloat(value) : value;
@@ -102,9 +130,17 @@ export const RiskCalculator: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-dark-text mb-2">Preço Atual (USD)</label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-dark-text">Preço Atual (USD)</label>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-dark-muted">{timeSinceUpdate}</span>
+                <button onClick={refreshPrices} disabled={isPriceLoading} className="text-dark-muted hover:text-neon-cyan disabled:opacity-50 disabled:cursor-not-allowed">
+                  <RefreshCw className={`w-3 h-3 ${isPriceLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            </div>
             <div className="relative w-full px-4 py-2.5 bg-dark-bg/50 border border-dark-border rounded-xl text-dark-text">
-              <span className="font-mono">{currentPrice.toLocaleString('en-US', getPriceFormatOptions(formData.asset))}</span>
+              <span className="font-mono">{currentPrice > 0 ? currentPrice.toLocaleString('en-US', getPriceFormatOptions(formData.asset)) : '...'}</span>
               <div className="absolute top-1/2 right-3 transform -translate-y-1/2 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             </div>
           </div>

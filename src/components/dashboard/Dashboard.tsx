@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet, TrendingDown, Shield, AlertCircle, Activity, Target } from 'lucide-react';
+import { Wallet, TrendingDown, Shield, AlertCircle, Activity, Target, BarChart2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { StatsCard } from './StatsCard';
 import { RiskCalculator } from './RiskCalculator';
 import { DashboardProvider, useDashboard } from '../../contexts/DashboardContext';
@@ -112,12 +113,12 @@ const DashboardContent: React.FC = () => {
             className="bg-gradient-to-r from-neon-cyan/10 via-neon-blue/10 to-neon-purple/10 rounded-2xl p-6 border border-neon-cyan/20"
           >
             <h3 className="text-xl font-semibold text-dark-text mb-4">Ações Rápidas</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <motion.button
                 onClick={() => setActiveModal('scenario')}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="p-4 bg-dark-card rounded-xl border border-dark-border hover:border-neon-cyan/50 transition-all duration-200 text-left"
+                className="p-4 bg-dark-card rounded-xl border border-dark-border hover:border-neon-cyan/50 transition-all duration-200 text-left h-full"
               >
                 <h4 className="font-medium text-dark-text">Simular Cenário</h4>
                 <p className="text-sm text-dark-muted mt-1">Teste diferentes variações de preço</p>
@@ -127,7 +128,7 @@ const DashboardContent: React.FC = () => {
                 onClick={() => setActiveModal('lot-calculator')}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="p-4 bg-dark-card rounded-xl border border-dark-border hover:border-neon-blue/50 transition-all duration-200 text-left"
+                className="p-4 bg-dark-card rounded-xl border border-dark-border hover:border-neon-blue/50 transition-all duration-200 text-left h-full"
               >
                 <h4 className="font-medium text-dark-text">Calcular Lote Ideal</h4>
                 <p className="text-sm text-dark-muted mt-1">Base no seu percentual de risco</p>
@@ -137,11 +138,25 @@ const DashboardContent: React.FC = () => {
                 onClick={() => setActiveModal('history')}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="p-4 bg-dark-card rounded-xl border border-dark-border hover:border-neon-purple/50 transition-all duration-200 text-left"
+                className="p-4 bg-dark-card rounded-xl border border-dark-border hover:border-neon-purple/50 transition-all duration-200 text-left h-full"
               >
                 <h4 className="font-medium text-dark-text">Histórico</h4>
                 <p className="text-sm text-dark-muted mt-1">Ver simulações anteriores</p>
               </motion.button>
+
+              <Link to="/growth-simulator" className="h-full">
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="p-4 bg-dark-card rounded-xl border border-dark-border hover:border-gold-main/50 transition-all duration-200 text-left h-full flex flex-col"
+                >
+                  <div className="flex items-center space-x-2">
+                    <BarChart2 className="w-4 h-4 text-gold-main" />
+                    <h4 className="font-medium text-dark-text">Simulador de Crescimento</h4>
+                  </div>
+                  <p className="text-sm text-dark-muted mt-1 flex-grow">Projete o poder do juro composto.</p>
+                </motion.div>
+              </Link>
             </div>
           </motion.div>
         </motion.div>

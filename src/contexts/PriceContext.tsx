@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
-import { BASE_PRICES, MarketData, SUPPORTED_SYMBOLS } from '../services/marketData';
+import { BASE_PRICES, MarketData, SUPPORTED_SYMBOLS, FINNHUB_SYMBOL_MAP } from '../services/marketData';
 
 // --- Interfaces ---
 interface PriceContextType {
@@ -22,23 +22,54 @@ export const useMarketData = () => {
   return context;
 };
 
-// --- Retry Utility ---
-const retry = async <T,>(
-  fn: () => Promise<T>,
-  retries = 3,
-  backoff = 1000
-): Promise<T> => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      console.warn(`[PriceContext] Falha na tentativa ${i + 1}/${retries}:`, (error as Error).message);
-      if (i === retries - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, backoff * Math.pow(2, i)));
+// --- Funções de Fetch ---
+
+// Fetch da Twelve Data (em lote)
+async function fetchFromTwelveData(apiKey: string): Promise<Partial<MarketData>> {
+  const symbols = SUPPORTED_SYMBOLS.join(',');
+  const url = `https://api.twelvedata.com/price?symbol=${symbols}&apikey=${apiKey}`;
+  const response = await fetch(url, { cache: 'no-store' });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    if (response.status === 429 || errorText.includes('credits')) {
+      throw new Error('Limite de API da Twelve Data atingido.');
+    }
+    throw new Error(`Erro na API Twelve Data: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const newPrices: Partial<MarketData> = {};
+  for (const symbol of SUPPORTED_SYMBOLS) {
+    const priceData = data[symbol];
+    if (priceData?.price) {
+      newPrices[symbol] = { price: parseFloat(priceData.price) };
     }
   }
-  throw new Error('Todas as tentativas falharam.');
-};
+  return newPrices;
+}
+
+// Fetch da Finnhub (em lote, uma chamada por símbolo)
+async function fetchFromFinnhub(apiKey: string): Promise<Partial<MarketData>> {
+  const newPrices: Partial<MarketData> = {};
+  const promises = SUPPORTED_SYMBOLS.map(async (symbol) => {
+    const finnhubSymbol = FINNHUB_SYMBOL_MAP[symbol];
+    const url = `https://finnhub.io/api/v1/quote?symbol=${finnhubSymbol}&token=${apiKey}`;
+    try {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data?.c) { // 'c' é o preço atual na API da Finnhub
+        newPrices[symbol] = { price: data.c };
+      }
+    } catch (error) {
+      console.warn(`[PriceContext] Falha ao buscar ${symbol} na Finnhub:`, (error as Error).message);
+    }
+  });
+
+  await Promise.all(promises);
+  return newPrices;
+}
 
 // --- Provider ---
 export const PriceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -50,137 +81,80 @@ export const PriceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return BASE_PRICES;
     }
   });
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [isRateLimited, setIsRateLimited] = useState(false);
-  const intervalRef = useRef<number | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(() => {
+    const cachedTimestamp = localStorage.getItem('marketDataTimestamp');
+    return cachedTimestamp ? new Date(JSON.parse(cachedTimestamp)) : null;
+  });
 
   const fetchPrices = useCallback(async () => {
-    if (isRateLimited) {
-      console.warn('[PriceContext] A busca de preços está pausada devido ao limite da API.');
-      return;
-    }
-
     setIsLoading(true);
-    if (!isRateLimited) {
-      setError(null);
-    }
+    setError(null);
 
     const twelveDataApiKey = import.meta.env.VITE_TWELVE_DATA_API_KEY;
+    const finnhubApiKey = import.meta.env.VITE_FINNHUB_API_KEY;
 
-    if (!twelveDataApiKey) {
-      const msg = "A chave da API da Twelve Data (VITE_TWELVE_DATA_API_KEY) não está configurada no arquivo .env.";
-      console.error(`[PriceContext] ${msg}`);
-      setError(msg);
-      setIsLoading(false);
-      return;
-    }
-
-    const symbols = SUPPORTED_SYMBOLS.join(',');
-    const apiUrl = `https://api.twelvedata.com/price?symbol=${symbols}&apikey=${twelveDataApiKey}`;
+    let newPrices: Partial<MarketData> = {};
+    let fetchError: Error | null = null;
 
     try {
-      const data = await retry(async () => {
-        const response = await fetch(apiUrl, {
-          method: 'GET',
-          cache: 'no-store',
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[PriceContext] Erro na API da Twelve Data (status: ${response.status}):`, errorText);
-          if (response.status === 429 || errorText.includes('run out of API credits')) {
-            throw new Error('Limite de chamadas da API da Twelve Data excedido.');
-          }
-          throw new Error('Falha na comunicação com a API de preços.');
-        }
-        return await response.json();
-      });
-
-      if (data.code && data.message?.includes('run out of API credits')) {
-        const msg = "Você excedeu o limite diário de chamadas da API. A busca de preços será retomada amanhã.";
-        setError(msg);
-        setIsRateLimited(true);
-        console.error(`[PriceContext] ${msg}`);
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-        }
-        return;
+      if (!twelveDataApiKey) throw new Error('Chave da API Twelve Data não configurada.');
+      console.log('[PriceContext] Tentando buscar preços na Twelve Data...');
+      newPrices = await fetchFromTwelveData(twelveDataApiKey);
+    } catch (err) {
+      console.warn(`[PriceContext] Falha na Twelve Data: ${(err as Error).message}. Usando fallback para Finnhub.`);
+      fetchError = err as Error;
+      try {
+        if (!finnhubApiKey) throw new Error('Chave da API Finnhub não configurada para fallback.');
+        console.log('[PriceContext] Tentando buscar preços na Finnhub...');
+        newPrices = await fetchFromFinnhub(finnhubApiKey);
+        fetchError = null; // Sucesso no fallback
+      } catch (fallbackErr) {
+        console.error('[PriceContext] Falha no fallback para Finnhub:', (fallbackErr as Error).message);
+        fetchError = fallbackErr as Error;
       }
+    }
 
-      const newPrices: Partial<MarketData> = {};
-      let hasValidData = false;
-
-      for (const symbol of SUPPORTED_SYMBOLS) {
-        const priceData = data[symbol];
-        if (priceData && priceData.price && !isNaN(parseFloat(priceData.price))) {
-          newPrices[symbol] = { price: parseFloat(priceData.price) };
-          hasValidData = true;
-        } else {
-          console.warn(`[PriceContext] Preço para o símbolo ${symbol} não encontrado na resposta. Mantendo valor anterior/fallback.`);
-        }
-      }
-
-      if (!hasValidData) {
-        if (data.code) {
-          throw new Error(`API da Twelve Data retornou um erro: ${data.message}`);
-        }
-        throw new Error('A resposta da API não continha dados de preço válidos.');
-      }
-
+    if (Object.keys(newPrices).length > 0) {
       setMarketData(prevData => {
         const updatedData = { ...prevData, ...newPrices };
         localStorage.setItem('marketData', JSON.stringify(updatedData));
         return updatedData;
       });
-      setLastUpdate(new Date());
-
-    } catch (err) {
-      const errorMessage = (err as Error).message;
-      console.error('[PriceContext] Erro final ao buscar preços:', errorMessage);
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
+      const now = new Date();
+      setLastUpdate(now);
+      localStorage.setItem('marketDataTimestamp', JSON.stringify(now));
+    } else if (fetchError) {
+      setError(fetchError.message);
     }
-  }, [isRateLimited]);
+
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
-    const POLLING_INTERVAL = 90000; // Aumentado para 90 segundos
-
-    const startPolling = () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (!isRateLimited) {
-        intervalRef.current = window.setInterval(fetchPrices, POLLING_INTERVAL);
-      }
-    };
-
-    const stopPolling = () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
+    const POLLING_INTERVAL = 5 * 60 * 1000; // 5 minutos
+    let intervalId: number | null = null;
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        stopPolling();
+        if (intervalId) clearInterval(intervalId);
       } else {
         fetchPrices();
-        startPolling();
+        intervalId = window.setInterval(fetchPrices, POLLING_INTERVAL);
       }
     };
 
-    fetchPrices();
-    startPolling();
-
+    fetchPrices(); // Busca inicial
+    intervalId = window.setInterval(fetchPrices, POLLING_INTERVAL);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      stopPolling();
+      if (intervalId) clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [fetchPrices, isRateLimited]);
+  }, [fetchPrices]);
 
   const value = {
     marketData,

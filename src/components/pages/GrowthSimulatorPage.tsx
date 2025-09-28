@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { DollarSign, Percent, BarChart, Calendar, Target, FileDown, Printer } from 'lucide-react';
+import { DollarSign, Percent, Target, FileDown, Printer, ArrowLeft } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { utils, writeFile } from 'xlsx';
+import { Link } from 'react-router-dom';
 
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
@@ -40,22 +41,28 @@ export const GrowthSimulatorPage: React.FC = () => {
       return data;
     }
 
+    const initialDailyProfit = avgProfitPerTrade * tradesPerDay;
+    const dailyGrowthRate = initialDailyProfit / initialCapital;
+
     let currentBalance = initialCapital;
-    const dailyProfitAmount = avgProfitPerTrade * tradesPerDay;
 
     for (let i = 1; i <= projectionDays; i++) {
       const initialDayBalance = currentBalance;
-      const dailyGrowthPercentage = (dailyProfitAmount / initialDayBalance) * 100;
       
+      const dailyProfit = initialDayBalance * dailyGrowthRate;
+      
+      const finalDayBalance = initialDayBalance + dailyProfit;
+      const growthPercentage = (dailyProfit / initialDayBalance) * 100;
+
       data.push({
         day: i,
         initialBalance: initialDayBalance,
-        dailyProfit: dailyProfitAmount,
-        finalBalance: initialDayBalance + dailyProfitAmount,
-        growthPercentage: dailyGrowthPercentage,
+        dailyProfit: dailyProfit,
+        finalBalance: finalDayBalance,
+        growthPercentage: growthPercentage,
       });
 
-      currentBalance += dailyProfitAmount;
+      currentBalance = finalDayBalance;
     }
 
     return data;
@@ -67,7 +74,7 @@ export const GrowthSimulatorPage: React.FC = () => {
     }
     const lastDay = projectionData[projectionData.length - 1];
     const totalProfit = lastDay.finalBalance - initialCapital;
-    const totalGrowth = (totalProfit / initialCapital) * 100;
+    const totalGrowth = initialCapital > 0 ? (totalProfit / initialCapital) * 100 : 0;
     return {
       finalBalance: lastDay.finalBalance,
       totalProfit,
@@ -110,6 +117,15 @@ export const GrowthSimulatorPage: React.FC = () => {
       <Header />
       <main className="flex-grow py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <Link to="/dashboard">
+              <Button variant="ghost" className="text-dark-muted hover:text-gold-light">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar ao Dashboard
+              </Button>
+            </Link>
+          </div>
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
