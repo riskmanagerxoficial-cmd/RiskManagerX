@@ -135,7 +135,7 @@ export const GrowthSimulatorPage: React.FC = () => {
               Simulador de Crescimento Composto
             </h1>
             <p className="text-dark-muted text-lg max-w-2xl mx-auto mt-4">
-              Visualize o poder do juro composto diário e projete o crescimento potencial do seu capital de trading.
+              Descubra o poder do crescimento composto diário e projete o potencial do seu capital de trading.
             </p>
           </motion.div>
 
