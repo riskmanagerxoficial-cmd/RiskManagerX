@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
+// Lista de símbolos gerenciada centralmente no backend.
 const SUPPORTED_SYMBOLS = [
   'XAU/USD',
   'EUR/USD',
@@ -9,26 +10,21 @@ const SUPPORTED_SYMBOLS = [
   'AAPL',
 ];
 
-// [CORREÇÃO] Adicionados cabeçalhos para instruir o navegador e CDNs a nunca armazenarem a resposta.
+// Cabeçalhos CORS e de Cache-Control para garantir dados sempre atualizados.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Cache-Control': 'no-cache, no-store, must-revalidate', // Garante que a resposta nunca seja cacheada
-  'Pragma': 'no-cache', // Para compatibilidade com HTTP/1.0
-  'Expires': '0', // Para compatibilidade com proxies antigos
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  // CORREÇÃO: Adicionado 'POST' para permitir chamadas via supabase.functions.invoke()
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Cache-Control': 'no-cache, no-store, must-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
 }
 
 serve(async (req) => {
+  // Handler para a requisição de preflight do CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
-  }
-
-  if (req.method !== 'GET') {
-    return new Response(JSON.stringify({ error: 'Método não permitido. Use GET.' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 405,
-    })
   }
 
   try {
@@ -42,15 +38,15 @@ serve(async (req) => {
     
     const response = await fetch(url);
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || `Erro na API da Twelve Data: ${response.status}`);
+      const errorData = await response.text();
+      console.error('Erro na API da Twelve Data:', errorData);
+      throw new Error(`Erro ao buscar dados da Twelve Data: ${response.status}`);
     }
 
     const data = await response.json();
     
     const marketData: { [key: string]: { price: number } } = {};
     for (const symbol of SUPPORTED_SYMBOLS) {
-      // A API retorna um objeto único se for um símbolo, ou um objeto com chaves se forem múltiplos.
       const priceData = SUPPORTED_SYMBOLS.length === 1 ? data : data[symbol];
       if (priceData && priceData.price && !isNaN(parseFloat(priceData.price))) {
         marketData[symbol] = { price: parseFloat(priceData.price) };

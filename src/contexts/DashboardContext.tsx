@@ -44,14 +44,14 @@ export const useDashboard = () => {
 // Funções auxiliares para cálculos
 const getContractSize = (asset: string): number => {
   if (asset === 'XAU/USD') return 100; // Ouro (100 onças por lote)
-  if (asset === 'AAPL' || asset === 'BTC/USD') return 1; // Ações e Cripto (1 unidade por lote)
+  // Ações, ETFs e Cripto (1 unidade por lote)
+  if (asset === 'AAPL' || asset === 'BTC/USD' || asset === 'SPY') return 1; 
   return 100000; // Padrão para Forex
 };
 
 const getPointValue = (asset: string, lotSize: number): number => {
-  if (asset === 'AAPL' || asset === 'BTC/USD') {
-    // Para ações e cripto, o "valor do ponto" é o valor de um movimento de $1.
-    // Assumindo que 1 lote = 1 unidade (1 ação, 1 BTC), o valor é o próprio lote.
+  // Para ações, ETFs e cripto, o "valor do ponto" é o valor de um movimento de $1.
+  if (asset === 'AAPL' || asset === 'BTC/USD' || asset === 'SPY') {
     return lotSize;
   }
   // Lógica para Forex e Ouro (valor do pip)

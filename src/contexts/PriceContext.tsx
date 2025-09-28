@@ -1,138 +1,197 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { BASE_PRICES, MarketData } from '../services/marketData';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
+import { BASE_PRICES, MarketData, SUPPORTED_SYMBOLS } from '../services/marketData';
 
+// --- Interfaces ---
 interface PriceContextType {
   marketData: MarketData;
   isLoading: boolean;
-  isPolling: boolean;
   error: string | null;
-  lastUpdate: string | null;
+  lastUpdate: Date | null;
+  refreshPrices: () => void;
 }
 
+// --- Context ---
 const PriceContext = createContext<PriceContextType | undefined>(undefined);
 
+// --- Hook ---
 export const useMarketData = () => {
   const context = useContext(PriceContext);
   if (!context) {
-    throw new Error('useMarketData must be used within a PriceProvider');
+    throw new Error('useMarketData deve ser usado dentro de um PriceProvider');
   }
   return context;
 };
 
+// --- Retry Utility ---
 const retry = async <T,>(
-  asyncFn: () => Promise<T>,
+  fn: () => Promise<T>,
   retries = 3,
-  delay = 1000,
-  backoff = 2
+  backoff = 1000
 ): Promise<T> => {
-  try {
-    return await asyncFn();
-  } catch (error) {
-    if (retries <= 0) {
-      throw error;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      console.warn(`[PriceContext] Falha na tentativa ${i + 1}/${retries}:`, (error as Error).message);
+      if (i === retries - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, backoff * Math.pow(2, i)));
     }
-    await new Promise(resolve => setTimeout(resolve, delay));
-    return retry(asyncFn, retries - 1, delay * backoff, backoff);
   }
+  throw new Error('Todas as tentativas falharam.');
 };
 
+// --- Provider ---
 export const PriceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [marketData, setMarketData] = useState<MarketData>(BASE_PRICES);
+  const [marketData, setMarketData] = useState<MarketData>(() => {
+    try {
+      const cachedData = localStorage.getItem('marketData');
+      return cachedData ? JSON.parse(cachedData) : BASE_PRICES;
+    } catch {
+      return BASE_PRICES;
+    }
+  });
   const [isLoading, setIsLoading] = useState(true);
-  const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const intervalRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    const fetchPrices = async () => {
-      if (!isLoading) {
-        setIsPolling(true);
-      }
+  const fetchPrices = useCallback(async () => {
+    if (isRateLimited) {
+      console.warn('[PriceContext] A busca de preços está pausada devido ao limite da API.');
+      return;
+    }
 
-      try {
-        const fetchedData = await retry(async () => {
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    setIsLoading(true);
+    if (!isRateLimited) {
+      setError(null);
+    }
 
-          if (!supabaseUrl || !supabaseAnonKey) {
-            throw new Error('As variáveis de ambiente do Supabase não estão configuradas.');
-          }
+    const twelveDataApiKey = import.meta.env.VITE_TWELVE_DATA_API_KEY;
 
-          const response = await fetch(`${supabaseUrl}/functions/v1/finnhub-prices`, {
-            method: 'GET',
-            headers: {
-              'apikey': supabaseAnonKey,
-              'Authorization': `Bearer ${supabaseAnonKey}`,
-            },
-            // [CORREÇÃO] Força o navegador a sempre buscar uma nova versão do servidor, ignorando caches.
-            cache: 'no-store',
-          });
+    if (!twelveDataApiKey) {
+      const msg = "A chave da API da Twelve Data (VITE_TWELVE_DATA_API_KEY) não está configurada no arquivo .env.";
+      console.error(`[PriceContext] ${msg}`);
+      setError(msg);
+      setIsLoading(false);
+      return;
+    }
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[PriceContext] Resposta de erro da Edge Function:', errorText);
-            throw new Error(`A requisição à Edge Function falhou com status ${response.status}.`);
-          }
+    const symbols = SUPPORTED_SYMBOLS.join(',');
+    const apiUrl = `https://api.twelvedata.com/price?symbol=${symbols}&apikey=${twelveDataApiKey}`;
 
-          return await response.json();
+    try {
+      const data = await retry(async () => {
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          cache: 'no-store',
         });
 
-        if (fetchedData && typeof fetchedData === 'object' && Object.keys(fetchedData).length > 0 && !fetchedData.error) {
-          console.log('[PriceContext] Preços recebidos da Edge Function:', fetchedData);
-          
-          const now = new Date().toISOString();
-          setMarketData(prevData => ({ ...prevData, ...fetchedData }));
-          setLastUpdate(now);
-          setError(null);
-
-          localStorage.setItem('marketData', JSON.stringify(fetchedData));
-          localStorage.setItem('lastUpdate', now);
-        } else {
-          throw new Error(fetchedData.error || 'A resposta da Edge Function não continha dados válidos.');
-        }
-
-      } catch (err: any) {
-        const errorMessage = err.message || 'Falha ao buscar preços após várias tentativas.';
-        console.error(`[PriceContext] Erro final ao buscar preços: ${errorMessage}`);
-        setError(errorMessage);
-      } finally {
-        if (isLoading) setIsLoading(false);
-        if (isPolling) setIsPolling(false);
-      }
-    };
-
-    const loadInitialData = () => {
-      try {
-        const cachedData = localStorage.getItem('marketData');
-        const cachedUpdate = localStorage.getItem('lastUpdate');
-        
-        if (cachedData) {
-          console.log('[PriceContext] Carregando dados do cache local para exibição inicial.');
-          setMarketData(JSON.parse(cachedData));
-          if (cachedUpdate) {
-            setLastUpdate(cachedUpdate);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[PriceContext] Erro na API da Twelve Data (status: ${response.status}):`, errorText);
+          if (response.status === 429 || errorText.includes('run out of API credits')) {
+            throw new Error('Limite de chamadas da API da Twelve Data excedido.');
           }
+          throw new Error('Falha na comunicação com a API de preços.');
         }
-      } catch (e) {
-        console.error('[PriceContext] Falha ao ler dados do localStorage.', e);
-      } finally {
-        // Inicia a busca por dados frescos imediatamente após carregar o cache.
-        fetchPrices();
+        return await response.json();
+      });
+
+      if (data.code && data.message?.includes('run out of API credits')) {
+        const msg = "Você excedeu o limite diário de chamadas da API. A busca de preços será retomada amanhã.";
+        setError(msg);
+        setIsRateLimited(true);
+        console.error(`[PriceContext] ${msg}`);
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        return;
+      }
+
+      const newPrices: Partial<MarketData> = {};
+      let hasValidData = false;
+
+      for (const symbol of SUPPORTED_SYMBOLS) {
+        const priceData = data[symbol];
+        if (priceData && priceData.price && !isNaN(parseFloat(priceData.price))) {
+          newPrices[symbol] = { price: parseFloat(priceData.price) };
+          hasValidData = true;
+        } else {
+          console.warn(`[PriceContext] Preço para o símbolo ${symbol} não encontrado na resposta. Mantendo valor anterior/fallback.`);
+        }
+      }
+
+      if (!hasValidData) {
+        if (data.code) {
+          throw new Error(`API da Twelve Data retornou um erro: ${data.message}`);
+        }
+        throw new Error('A resposta da API não continha dados de preço válidos.');
+      }
+
+      setMarketData(prevData => {
+        const updatedData = { ...prevData, ...newPrices };
+        localStorage.setItem('marketData', JSON.stringify(updatedData));
+        return updatedData;
+      });
+      setLastUpdate(new Date());
+
+    } catch (err) {
+      const errorMessage = (err as Error).message;
+      console.error('[PriceContext] Erro final ao buscar preços:', errorMessage);
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isRateLimited]);
+
+  useEffect(() => {
+    const POLLING_INTERVAL = 90000; // Aumentado para 90 segundos
+
+    const startPolling = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (!isRateLimited) {
+        intervalRef.current = window.setInterval(fetchPrices, POLLING_INTERVAL);
       }
     };
 
-    loadInitialData();
+    const stopPolling = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
 
-    const pollInterval = setInterval(fetchPrices, 60000);
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        fetchPrices();
+        startPolling();
+      }
+    };
+
+    fetchPrices();
+    startPolling();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      console.log('[PriceContext] Limpando o intervalo de polling.');
-      clearInterval(pollInterval);
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []); // O array de dependências vazio garante que este efeito rode apenas uma vez.
+  }, [fetchPrices, isRateLimited]);
+
+  const value = {
+    marketData,
+    isLoading,
+    error,
+    lastUpdate,
+    refreshPrices: fetchPrices,
+  };
 
   return (
-    <PriceContext.Provider value={{ marketData, isLoading, isPolling, error, lastUpdate }}>
+    <PriceContext.Provider value={value}>
       {children}
     </PriceContext.Provider>
   );

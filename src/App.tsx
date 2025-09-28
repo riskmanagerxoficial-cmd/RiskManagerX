@@ -24,6 +24,7 @@ import { CookiesPage } from './components/pages/CookiesPage'
 import { LGPDPage } from './components/pages/LGPDPage'
 import { APIPage } from './components/pages/APIPage'
 import { DisclaimerPage } from './components/pages/DisclaimerPage'
+import { GrowthSimulatorPage } from './components/pages/GrowthSimulatorPage'
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth()
@@ -51,11 +52,13 @@ const AppContent: React.FC = () => {
 
   return (
     <Routes>
-      <Route path="/" element={!user ? <LandingPage /> : DashboardLayout} />
+      <Route path="/" element={!user ? <LandingPage /> : <Navigate to="/dashboard" replace />} />
       
       <Route path="/auth" element={user ? <Navigate to="/dashboard" replace /> : <AuthForm />} />
       
       <Route path="/dashboard" element={user ? DashboardLayout : <Navigate to="/auth" replace />} />
+
+      <Route path="/growth-simulator" element={user ? <GrowthSimulatorPage /> : <Navigate to="/auth" replace />} />
       
       {/* Footer Pages Routes */}
       <Route path="/about" element={<AboutPage />} />

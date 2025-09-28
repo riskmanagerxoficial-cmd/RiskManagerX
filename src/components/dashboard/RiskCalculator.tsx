@@ -70,7 +70,7 @@ export const RiskCalculator: React.FC = () => {
 
   const getPriceFormatOptions = (asset: string) => {
     if (asset.includes('JPY')) return { minimumFractionDigits: 3, maximumFractionDigits: 3 };
-    if (asset === 'AAPL' || asset === 'BTC/USD' || asset === 'XAU/USD') return { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+    if (asset === 'AAPL' || asset === 'BTC/USD' || asset === 'XAU/USD' || asset === 'SPY') return { minimumFractionDigits: 2, maximumFractionDigits: 2 };
     return { minimumFractionDigits: 4, maximumFractionDigits: 4 };
   }
 
@@ -97,6 +97,7 @@ export const RiskCalculator: React.FC = () => {
               <option value="USD/JPY">USD/JPY</option>
               <option value="BTC/USD">BTC/USD (Bitcoin)</option>
               <option value="AAPL">AAPL (Apple Inc.)</option>
+              <option value="SPY">SPY (S&P 500)</option>
             </select>
           </div>
 

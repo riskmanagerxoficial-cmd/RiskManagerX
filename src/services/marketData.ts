@@ -5,6 +5,7 @@ export interface MarketData {
 }
 
 // Lista de símbolos que a aplicação irá buscar na API
+// Adicionado SPY para representar o S&P 500, conforme solicitado.
 export const SUPPORTED_SYMBOLS = [
   'XAU/USD',
   'EUR/USD',
@@ -12,6 +13,7 @@ export const SUPPORTED_SYMBOLS = [
   'USD/JPY',
   'BTC/USD',
   'AAPL',
+  'SPY', // S&P 500 ETF
 ];
 
 // Preços de fallback para o carregamento inicial ou em caso de falha da API
@@ -22,4 +24,5 @@ export const BASE_PRICES: MarketData = {
   'USD/JPY': { price: 155.00 },
   'BTC/USD': { price: 65000.00 },
   'AAPL':    { price: 210.00 },
+  'SPY':     { price: 540.00 }, // Fallback para S&P 500 ETF
 };
