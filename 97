@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Database } from '../../lib/supabase';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { FileDown, Filter } from 'lucide-react';
+import { FileDown, Filter, Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { utils, writeFile } from 'xlsx';
 import jsPDF from 'jspdf';
@@ -12,9 +12,11 @@ type Trade = Database['public']['Tables']['trades']['Row'];
 
 interface TradesTableProps {
   trades: Trade[];
+  onEdit: (trade: Trade) => void;
+  onDelete: (trade: Trade) => void;
 }
 
-export const TradesTable: React.FC<TradesTableProps> = ({ trades }) => {
+export const TradesTable: React.FC<TradesTableProps> = ({ trades, onEdit, onDelete }) => {
   const [filter, setFilter] = useState('');
   const [assetFilter, setAssetFilter] = useState('all');
 
@@ -99,6 +101,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({ trades }) => {
               <th scope="col" className="px-4 py-3">Lote</th>
               <th scope="col" className="px-4 py-3">Resultado (USD)</th>
               <th scope="col" className="px-4 py-3">Notas</th>
+              <th scope="col" className="px-4 py-3 text-center">Ações</th>
             </tr>
           </thead>
           <tbody className="text-dark-text">
@@ -114,6 +117,16 @@ export const TradesTable: React.FC<TradesTableProps> = ({ trades }) => {
                   {trade.result_usd.toFixed(2)}
                 </td>
                 <td className="px-4 py-3 text-dark-muted max-w-xs truncate">{trade.notes}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-center space-x-3">
+                    <button onClick={() => onEdit(trade)} className="text-dark-muted hover:text-neon-blue transition-colors">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => onDelete(trade)} className="text-dark-muted hover:text-red-500 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

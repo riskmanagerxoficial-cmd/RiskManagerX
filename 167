@@ -1,0 +1,48 @@
+import React from 'react';
+import { Modal } from './Modal';
+import { Button } from './Button';
+import { AlertTriangle } from 'lucide-react';
+
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  children: React.ReactNode;
+  confirmText?: string;
+  isDestructive?: boolean;
+  isLoading?: boolean;
+}
+
+export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  children,
+  confirmText = 'Confirmar',
+  isDestructive = false,
+  isLoading = false,
+}) => {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
+      <div className="text-center">
+        {isDestructive && <AlertTriangle className="mx-auto h-12 w-12 text-red-400 mb-4" />}
+        <div className="text-dark-muted space-y-2">{children}</div>
+        <div className="mt-6 flex justify-center space-x-4">
+          <Button variant="secondary" onClick={onClose} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={onConfirm}
+            className={isDestructive ? 'bg-red-600 hover:bg-red-700 border-red-600 focus:ring-red-500' : ''}
+            loading={isLoading}
+            disabled={isLoading}
+          >
+            {confirmText}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+};

@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 
 type Trade = Database['public']['Tables']['trades']['Row'];
 type NewTrade = Database['public']['Tables']['trades']['Insert'];
+type UpdateTrade = Database['public']['Tables']['trades']['Update'];
 
 export interface JournalStats {
   totalTrades: number;
@@ -29,6 +30,8 @@ interface JournalContextType {
   loading: boolean;
   error: string | null;
   addTrade: (tradeData: NewTrade) => Promise<void>;
+  updateTrade: (tradeId: string, updates: UpdateTrade) => Promise<void>;
+  deleteTrade: (tradeId: string) => Promise<void>;
   fetchTrades: () => Promise<void>;
 }
 
@@ -81,25 +84,57 @@ export const JournalProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const addTrade = async (tradeData: Omit<NewTrade, 'user_id'>) => {
     if (!user) throw new Error("Usuário não autenticado.");
-    try {
-      const { data, error } = await supabase
-        .from('trades')
-        .insert({ ...tradeData, user_id: user.id })
-        .select();
-      if (error) throw error;
-      if (data) {
-        setTrades(prev => [...prev, ...data].sort((a, b) => new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()));
-      }
-    } catch (err: any) {
-      if (err?.code === 'PGRST303' || err?.message?.includes('JWT expired')) {
-        toast.error('Sessão expirada', 'Não foi possível salvar. Faça login novamente.');
-        setTimeout(() => signOut(), 3000);
-        // Não relança o erro para evitar toast duplicado no formulário
-      } else {
-        // Para outros erros, relança para que o formulário possa tratá-los
-        throw err;
-      }
+    
+    const { data, error } = await supabase
+      .from('trades')
+      .insert({ ...tradeData, user_id: user.id })
+      .select()
+      .single();
+      
+    if (error) {
+      toast.error('Falha ao registrar operação.');
+      console.error(error);
+      throw error;
     }
+    if (data) {
+      setTrades(prev => [...prev, data].sort((a, b) => new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()));
+    }
+  };
+
+  const updateTrade = async (tradeId: string, updates: UpdateTrade) => {
+    if (!user) throw new Error("Usuário não autenticado.");
+
+    const { data, error } = await supabase
+      .from('trades')
+      .update(updates)
+      .eq('id', tradeId)
+      .select()
+      .single();
+
+    if (error) {
+      toast.error('Falha ao atualizar operação.');
+      console.error(error);
+      throw error;
+    }
+    if (data) {
+      setTrades(prev => prev.map(t => t.id === tradeId ? data : t).sort((a, b) => new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()));
+    }
+  };
+
+  const deleteTrade = async (tradeId: string) => {
+    if (!user) throw new Error("Usuário não autenticado.");
+    
+    const { error } = await supabase
+      .from('trades')
+      .delete()
+      .eq('id', tradeId);
+
+    if (error) {
+      toast.error('Falha ao apagar operação.');
+      console.error(error);
+      throw error;
+    }
+    setTrades(prev => prev.filter(t => t.id !== tradeId));
   };
 
   const { stats, equityCurve } = useMemo(() => {
@@ -169,6 +204,8 @@ export const JournalProvider: React.FC<{ children: ReactNode }> = ({ children })
     loading,
     error,
     addTrade,
+    updateTrade,
+    deleteTrade,
     fetchTrades,
   };
 
