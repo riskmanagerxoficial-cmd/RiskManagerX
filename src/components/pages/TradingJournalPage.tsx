@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { PlusCircle, Loader2, ServerCrash } from 'lucide-react';
+import { PlusCircle, Loader2, ServerCrash, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { JournalProvider, useJournal } from '../../contexts/JournalContext';
 import { Header } from '../layout/Header';
 import { AppFooter } from '../layout/AppFooter';
@@ -14,6 +15,10 @@ import { TradesTable } from '../journal/TradesTable';
 const JournalContent: React.FC = () => {
   const { trades, stats, equityCurve, loading, error, addTrade } = useJournal();
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const renderBody = () => {
     if (loading) {
@@ -68,6 +73,12 @@ const JournalContent: React.FC = () => {
         >
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
+              <Link to="/dashboard" className="mb-4 inline-block">
+                <Button variant="ghost" className="text-dark-muted hover:text-neon-cyan">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Voltar ao Dashboard
+                </Button>
+              </Link>
               <h1 className="text-4xl md:text-5xl font-display font-bold bg-gradient-to-r from-neon-cyan via-neon-blue to-neon-purple bg-clip-text text-transparent">
                 Diário de Trading
               </h1>

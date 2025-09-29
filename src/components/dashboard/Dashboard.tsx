@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet, TrendingDown, Shield, AlertCircle, Activity, Target, BarChart2 } from 'lucide-react';
+import { Wallet, TrendingDown, Shield, AlertCircle, Activity, Target, BarChart2, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { StatsCard } from './StatsCard';
 import { RiskCalculator } from './RiskCalculator';
@@ -113,7 +113,7 @@ const DashboardContent: React.FC = () => {
             className="bg-gradient-to-r from-neon-cyan/10 via-neon-blue/10 to-neon-purple/10 rounded-2xl p-6 border border-neon-cyan/20"
           >
             <h3 className="text-xl font-semibold text-dark-text mb-4">Ações Rápidas</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <motion.button
                 onClick={() => setActiveModal('scenario')}
                 whileHover={{ scale: 1.02 }}
@@ -143,6 +143,20 @@ const DashboardContent: React.FC = () => {
                 <h4 className="font-medium text-dark-text">Histórico</h4>
                 <p className="text-sm text-dark-muted mt-1">Ver simulações anteriores</p>
               </motion.button>
+
+              <Link to="/journal" className="h-full">
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="p-4 bg-dark-card rounded-xl border border-dark-border hover:border-neon-blue/50 transition-all duration-200 text-left h-full flex flex-col"
+                >
+                  <div className="flex items-center space-x-2">
+                    <BookOpen className="w-4 h-4 text-neon-blue" />
+                    <h4 className="font-medium text-dark-text">Diário de Trading</h4>
+                  </div>
+                  <p className="text-sm text-dark-muted mt-1 flex-grow">Analise seu desempenho.</p>
+                </motion.div>
+              </Link>
 
               <Link to="/growth-simulator" className="h-full">
                 <motion.div
