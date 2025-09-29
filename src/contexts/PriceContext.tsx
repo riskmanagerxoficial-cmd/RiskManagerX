@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { useAuth } from './AuthContext'; // Importa o hook de autenticação
 import { BASE_PRICES, MarketData, SUPPORTED_SYMBOLS, FINNHUB_SYMBOL_MAP } from '../services/marketData';
 
 // --- Interfaces ---
@@ -43,7 +44,7 @@ async function fetchFromTwelveData(apiKey: string): Promise<Partial<MarketData>>
   for (const symbol of SUPPORTED_SYMBOLS) {
     const priceData = data[symbol];
     if (priceData?.price) {
-      newPrices[symbol] = { price: parseFloat(priceData.price) };
+      newPrices[symbol.replace('/', '')] = { price: parseFloat(priceData.price) };
     }
   }
   return newPrices;
@@ -60,7 +61,7 @@ async function fetchFromFinnhub(apiKey: string): Promise<Partial<MarketData>> {
       if (!response.ok) return;
       const data = await response.json();
       if (data?.c) { // 'c' é o preço atual na API da Finnhub
-        newPrices[symbol] = { price: data.c };
+        newPrices[symbol.replace('/', '')] = { price: data.c };
       }
     } catch (error) {
       console.warn(`[PriceContext] Falha ao buscar ${symbol} na Finnhub:`, (error as Error).message);
@@ -73,6 +74,8 @@ async function fetchFromFinnhub(apiKey: string): Promise<Partial<MarketData>> {
 
 // --- Provider ---
 export const PriceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { user } = useAuth(); // Obtém o status do usuário
+
   const [marketData, setMarketData] = useState<MarketData>(() => {
     try {
       const cachedData = localStorage.getItem('marketData');
@@ -101,14 +104,12 @@ export const PriceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     try {
       if (!twelveDataApiKey) throw new Error('Chave da API Twelve Data não configurada.');
-      console.log('[PriceContext] Tentando buscar preços na Twelve Data...');
       newPrices = await fetchFromTwelveData(twelveDataApiKey);
     } catch (err) {
       console.warn(`[PriceContext] Falha na Twelve Data: ${(err as Error).message}. Usando fallback para Finnhub.`);
       fetchError = err as Error;
       try {
         if (!finnhubApiKey) throw new Error('Chave da API Finnhub não configurada para fallback.');
-        console.log('[PriceContext] Tentando buscar preços na Finnhub...');
         newPrices = await fetchFromFinnhub(finnhubApiKey);
         fetchError = null; // Sucesso no fallback
       } catch (fallbackErr) {
@@ -134,27 +135,33 @@ export const PriceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, []);
 
   useEffect(() => {
-    const POLLING_INTERVAL = 5 * 60 * 1000; // 5 minutos
-    let intervalId: number | null = null;
+    // **CORREÇÃO:** A busca de preços só é iniciada se houver um usuário logado.
+    if (user) {
+      const POLLING_INTERVAL = 5 * 60 * 1000; // 5 minutos
+      let intervalId: number | null = null;
 
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          if (intervalId) clearInterval(intervalId);
+        } else {
+          fetchPrices();
+          intervalId = window.setInterval(fetchPrices, POLLING_INTERVAL);
+        }
+      };
+
+      fetchPrices(); // Busca inicial
+      intervalId = window.setInterval(fetchPrices, POLLING_INTERVAL);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      // A função de limpeza do useEffect garante que o intervalo e o listener
+      // sejam removidos quando o usuário deslogar (o componente será re-renderizado
+      // e este efeito não será mais executado).
+      return () => {
         if (intervalId) clearInterval(intervalId);
-      } else {
-        fetchPrices();
-        intervalId = window.setInterval(fetchPrices, POLLING_INTERVAL);
-      }
-    };
-
-    fetchPrices(); // Busca inicial
-    intervalId = window.setInterval(fetchPrices, POLLING_INTERVAL);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [fetchPrices]);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }
+  }, [fetchPrices, user]); // Adiciona `user` como dependência
 
   const value = {
     marketData,
