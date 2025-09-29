@@ -72,6 +72,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({ isOpen, onClose,
         <div>
             <label className="block text-sm font-medium text-dark-text mb-2">Data e Hora da Operação</label>
             <Input type="datetime-local" {...register('trade_date')} error={errors.trade_date?.message} />
+            <p className="text-xs text-dark-muted mt-1.5">
+              Pode alterar este campo para registar operações de dias ou horas anteriores.
+            </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>

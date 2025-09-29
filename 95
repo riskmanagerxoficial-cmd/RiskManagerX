@@ -24,13 +24,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export const ChartsSection: React.FC<ChartsSectionProps> = ({ equityCurve, stats }) => {
   const winLossData = [
-    { name: 'Lucro', count: stats.totalWins, fill: '#22c55e' },
-    { name: 'Prejuízo', count: stats.totalLosses, fill: '#ef4444' },
+    { name: 'Lucro', value: stats.totalWins, fill: '#22c55e' },
+    { name: 'Prejuízo', value: stats.totalLosses, fill: '#ef4444' },
   ];
 
   const winrateByAssetData = Object.entries(stats.winrateByAsset).map(([asset, data]) => ({
     name: asset,
-    value: data.winrate,
+    winrate: data.winrate,
   }));
 
   return (
@@ -53,15 +53,27 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ equityCurve, stats
       </div>
       <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
         <Card glow="blue" className="h-full">
-          <h3 className="text-lg font-semibold text-dark-text mb-4">Ganhos vs. Perdas</h3>
+          <h3 className="text-lg font-semibold text-dark-text mb-4">Proporção Ganhos/Perdas</h3>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={winLossData} layout="vertical">
-                <XAxis type="number" stroke="#666" fontSize={12} />
-                <YAxis type="category" dataKey="name" stroke="#666" fontSize={12} width={60} />
-                <Tooltip cursor={{ fill: 'rgba(0, 128, 255, 0.1)' }} contentStyle={{ backgroundColor: '#111', border: '1px solid #0080ff' }} />
-                <Bar dataKey="count" barSize={20} />
-              </BarChart>
+              <PieChart>
+                <Pie 
+                  data={winLossData} 
+                  dataKey="value" 
+                  nameKey="name" 
+                  cx="50%" 
+                  cy="50%" 
+                  outerRadius={60} 
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={false}
+                  fontSize={12}
+                >
+                  {winLossData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid #0080ff' }} formatter={(value) => `${value} trades`} />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         </Card>
@@ -69,14 +81,17 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ equityCurve, stats
           <h3 className="text-lg font-semibold text-dark-text mb-4">Winrate por Ativo</h3>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={winrateByAssetData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                  {winrateByAssetData.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid #8000ff' }} formatter={(value) => `${Number(value).toFixed(2)}%`} />
-              </PieChart>
+              <BarChart data={winrateByAssetData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 0, 255, 0.1)" />
+                <XAxis dataKey="name" stroke="#666" fontSize={12} />
+                <YAxis domain={[0, 100]} stroke="#666" fontSize={12} tickFormatter={(val) => `${val}%`} />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(128, 0, 255, 0.1)' }} 
+                  contentStyle={{ backgroundColor: '#111', border: '1px solid #8000ff' }} 
+                  formatter={(value) => `${Number(value).toFixed(2)}%`}
+                />
+                <Bar dataKey="winrate" name="Winrate" fill="#AF19FF" barSize={30} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
