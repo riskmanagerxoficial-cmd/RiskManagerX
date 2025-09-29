@@ -1,0 +1,124 @@
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { supabase, Database } from '../lib/supabase';
+import { useAuth } from './AuthContext';
+import { useToast } from './ToastContext';
+
+type UserSettings = Database['public']['Tables']['user_settings']['Row'];
+
+interface SettingsContextType {
+  settings: UserSettings | null;
+  loading: boolean;
+  updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
+}
+
+const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+
+export const useSettings = () => {
+  const context = useContext(SettingsContext);
+  if (!context) {
+    throw new Error('useSettings must be used within a SettingsProvider');
+  }
+  return context;
+};
+
+const defaultSettings: Omit<UserSettings, 'id' | 'updated_at'> = {
+  alert_pause_warning_dashboard: true,
+  alert_pause_warning_email: false,
+  alert_pause_warning_push: false,
+  alert_pause_start_dashboard: true,
+  alert_pause_start_email: false,
+  alert_pause_start_push: false,
+  alert_market_reopen_dashboard: true,
+  alert_market_reopen_email: false,
+  alert_market_reopen_push: false,
+  alert_weekly_close_warning_dashboard: true,
+  alert_weekly_close_warning_email: false,
+  alert_weekly_close_warning_push: false,
+};
+
+export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { user, signOut } = useAuth();
+  const toast = useToast();
+  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOrCreateSettings = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Abordagem atómica e definitiva:
+      // 1. `upsert` cria ou atualiza o registo com base na chave primária (`id`).
+      // 2. `.select().single()` retorna a linha resultante numa única chamada à base de dados.
+      const { data, error } = await supabase
+        .from('user_settings')
+        .upsert({ id: user.id, ...defaultSettings })
+        .select()
+        .single();
+
+      if (error) {
+        // Trata o erro de sessão expirada de forma amigável.
+        if (error.message.includes('JWT expired')) {
+          toast.error('Sessão expirada', 'Por favor, faça login novamente.');
+          signOut();
+          return;
+        }
+        // Lança outros erros (ex: RLS) para serem apanhados pelo catch.
+        throw error;
+      }
+      
+      setSettings(data);
+
+    } catch (err: any) {
+      console.error("Error fetching or creating user settings:", err);
+      toast.error('Erro nas Configurações', 'Não foi possível carregar as suas configurações.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user, signOut, toast]);
+
+  useEffect(() => {
+    if (user) {
+      fetchOrCreateSettings();
+    } else {
+      // Limpa as configurações e para o loading no logout.
+      setSettings(null);
+      setLoading(false);
+    }
+  }, [user, fetchOrCreateSettings]);
+
+  const updateSettings = async (newSettings: Partial<UserSettings>) => {
+    if (!user || !settings) return;
+
+    const currentSettings = settings;
+    const updatedSettings = { ...currentSettings, ...newSettings };
+    setSettings(updatedSettings); // Atualização otimista
+
+    const { error } = await supabase
+      .from('user_settings')
+      .update(newSettings)
+      .eq('id', user.id);
+
+    if (error) {
+      console.error("Error updating settings:", error);
+      toast.error('Falha ao Salvar', 'Não foi possível salvar as alterações.');
+      setSettings(currentSettings); // Reverte em caso de erro
+      throw error;
+    }
+  };
+
+  const value = {
+    settings,
+    loading,
+    updateSettings,
+  };
+
+  return (
+    <SettingsContext.Provider value={value}>
+      {children}
+    </SettingsContext.Provider>
+  );
+};

@@ -143,6 +143,54 @@ export type Database = {
           notes?: string | null
         }
       }
+      user_settings: {
+        Row: {
+          id: string;
+          alert_pause_warning_dashboard: boolean;
+          alert_pause_warning_email: boolean;
+          alert_pause_warning_push: boolean;
+          alert_pause_start_dashboard: boolean;
+          alert_pause_start_email: boolean;
+          alert_pause_start_push: boolean;
+          alert_market_reopen_dashboard: boolean;
+          alert_market_reopen_email: boolean;
+          alert_market_reopen_push: boolean;
+          alert_weekly_close_warning_dashboard: boolean;
+          alert_weekly_close_warning_email: boolean;
+          alert_weekly_close_warning_push: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          alert_pause_warning_dashboard?: boolean;
+          alert_pause_warning_email?: boolean;
+          alert_pause_warning_push?: boolean;
+          alert_pause_start_dashboard?: boolean;
+          alert_pause_start_email?: boolean;
+          alert_pause_start_push?: boolean;
+          alert_market_reopen_dashboard?: boolean;
+          alert_market_reopen_email?: boolean;
+          alert_market_reopen_push?: boolean;
+          alert_weekly_close_warning_dashboard?: boolean;
+          alert_weekly_close_warning_email?: boolean;
+          alert_weekly_close_warning_push?: boolean;
+        };
+        Update: Partial<{
+          id: string;
+          alert_pause_warning_dashboard: boolean;
+          alert_pause_warning_email: boolean;
+          alert_pause_warning_push: boolean;
+          alert_pause_start_dashboard: boolean;
+          alert_pause_start_email: boolean;
+          alert_pause_start_push: boolean;
+          alert_market_reopen_dashboard: boolean;
+          alert_market_reopen_email: boolean;
+          alert_market_reopen_push: boolean;
+          alert_weekly_close_warning_dashboard: boolean;
+          alert_weekly_close_warning_email: boolean;
+          alert_weekly_close_warning_push: boolean;
+        }>;
+      };
     }
     Enums: {
       trade_direction: 'buy' | 'sell'

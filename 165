@@ -1,0 +1,38 @@
+/*
+          # [Fix] Consolidate RLS Policies for user_settings
+          [This script provides a definitive fix for the Row-Level Security issues on the 'user_settings' table. It removes all previous, separate policies and replaces them with a single, comprehensive policy that grants users full control (SELECT, INSERT, UPDATE, DELETE) over their own settings row, identified by their user ID. This resolves the "new row violates RLS policy" error that occurred during the creation of default settings for new users.]
+
+          ## Query Description: ["This operation cleans up and consolidates security policies on the 'user_settings' table. It is a safe and non-destructive operation for user data, ensuring that security rules are correctly and simply applied."]
+          
+          ## Metadata:
+          - Schema-Category: ["Security", "Structural"]
+          - Impact-Level: ["Low"]
+          - Requires-Backup: [false]
+          - Reversible: [true]
+          
+          ## Structure Details:
+          - Tables affected: [public.user_settings]
+          - Operations: [DROP POLICY, CREATE POLICY]
+          
+          ## Security Implications:
+          - RLS Status: [Enabled]
+          - Policy Changes: [Yes]
+          - Auth Requirements: [User must be authenticated]
+          
+          ## Performance Impact:
+          - Indexes: [No change]
+          - Triggers: [No change]
+          - Estimated Impact: [None]
+          */
+
+-- Drop all previous policies to ensure a clean state
+DROP POLICY IF EXISTS "Allow individual user read access" ON public.user_settings;
+DROP POLICY IF EXISTS "Allow individual user update access" ON public.user_settings;
+DROP POLICY IF EXISTS "Allow individual user insert access" ON public.user_settings;
+
+-- Create a single, consolidated policy for all actions
+CREATE POLICY "Allow full access for own settings"
+ON public.user_settings
+FOR ALL
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);

@@ -1,0 +1,36 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+
+interface SwitchProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+}
+
+export const Switch: React.FC<SwitchProps> = ({ checked, onChange, disabled = false }) => {
+  const spring = {
+    type: 'spring',
+    stiffness: 700,
+    damping: 30
+  };
+
+  return (
+    <div
+      className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-300 ${
+        checked ? 'bg-neon-cyan' : 'bg-dark-border'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      onClick={() => !disabled && onChange(!checked)}
+    >
+      <motion.div
+        className="h-5 w-5 bg-white rounded-full shadow-lg"
+        layout
+        transition={spring}
+        style={{
+          position: 'absolute',
+          left: checked ? 'auto' : '2px',
+          right: checked ? '2px' : 'auto',
+        }}
+      />
+    </div>
+  );
+};

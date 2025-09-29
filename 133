@@ -28,22 +28,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Recuperar sessão inicial
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+    setLoading(true);
+    // Função assíncrona para inicializar a sessão de forma robusta.
+    const initializeSession = async () => {
+      try {
+        // Tenta obter a sessão atual. O Supabase tentará usar o refresh token, se existir.
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-    // Escutar mudanças de autenticação
+        // Se houver um erro (como 'Invalid Refresh Token'), o Supabase já o trata
+        // retornando uma sessão nula. Nós explicitamente tratamos esse caso.
+        if (error) {
+          console.warn('AuthContext: Erro ao recuperar a sessão inicial (comportamento esperado em caso de token inválido):', error.message);
+          setSession(null);
+          setUser(null);
+        } else {
+          setSession(session);
+          setUser(session?.user ?? null);
+        }
+      } catch (e) {
+        // Captura de segurança para erros inesperados durante a inicialização.
+        console.error('AuthContext: Falha crítica na inicialização da sessão:', e);
+        setSession(null);
+        setUser(null);
+      } finally {
+        // Garante que o estado de 'loading' seja finalizado.
+        setLoading(false);
+      }
+    };
+
+    initializeSession();
+
+    // Escuta por mudanças no estado de autenticação (login, logout, etc.).
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
 
-    return () => subscription.unsubscribe()
-  }, [])
+    // Limpa a subscrição quando o componente é desmontado.
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({

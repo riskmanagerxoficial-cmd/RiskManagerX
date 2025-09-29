@@ -1,0 +1,30 @@
+/*
+          # [Operation Name]
+          Adicionar Política de Inserção para Configurações de Utilizador
+
+          ## Query Description: [Esta operação adiciona uma política de segurança de nível de linha (RLS) que permite a um utilizador autenticado criar a sua própria linha de configurações na tabela `user_settings`. Sem esta política, nenhum utilizador consegue salvar as suas configurações iniciais, resultando num erro. Esta alteração é segura e não afeta dados existentes, apenas corrige uma permissão em falta.]
+          
+          ## Metadata:
+          - Schema-Category: "Structural"
+          - Impact-Level: "Low"
+          - Requires-Backup: false
+          - Reversible: true
+          
+          ## Structure Details:
+          - Tabela Afetada: public.user_settings
+          - Operação: CREATE POLICY
+          
+          ## Security Implications:
+          - RLS Status: Modificando políticas existentes
+          - Policy Changes: Sim (Adicionando política de INSERT)
+          - Auth Requirements: A política requer um utilizador autenticado (auth.uid()).
+          
+          ## Performance Impact:
+          - Indexes: Nenhum
+          - Triggers: Nenhum
+          - Estimated Impact: Nulo. O impacto no desempenho é insignificante, pois apenas afeta a verificação de permissões durante a operação de INSERT, que é pouco frequente.
+          */
+CREATE POLICY "Allow individual insert access"
+ON public.user_settings
+FOR INSERT
+WITH CHECK (auth.uid() = id);

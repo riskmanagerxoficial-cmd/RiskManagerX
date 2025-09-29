@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getMarketStatus, MarketStatus } from '../lib/trading-hours';
 import { useToast } from '../contexts/ToastContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { CheckCircle, Clock, Pause } from 'lucide-react';
 
 interface TradingStatus {
@@ -20,6 +21,7 @@ export const useTradingStatus = () => {
   const [statusInfo, setStatusInfo] = useState<TradingStatus | null>(null);
   const prevStatusRef = useRef<MarketStatus | null>(null);
   const toast = useToast();
+  const { settings, loading: settingsLoading } = useSettings();
   const notificationsSent = useRef({
     pauseWarning: false,
     closeWarning: false,
@@ -27,11 +29,13 @@ export const useTradingStatus = () => {
 
   useEffect(() => {
     const updateStatus = () => {
+      if (settingsLoading) return; // Don't run if settings are not loaded yet
+
       const now = new Date();
       const { status, message, nextEventTime, nextEventStatus } = getMarketStatus(now);
       const prevStatus = prevStatusRef.current;
 
-      // Atualiza o estado do banner
+      // Update banner state
       const config = statusConfig[status];
       setStatusInfo({
         status,
@@ -40,47 +44,63 @@ export const useTradingStatus = () => {
         icon: config.icon,
       });
 
-      // --- Lógica de Notificações ---
+      // --- Notification Logic ---
 
-      // Reinicia avisos quando um novo dia de negociação começa (após a pausa)
+      // Reset warnings on market state changes
       if (prevStatus === 'PAUSED' && status === 'OPEN') {
         notificationsSent.current.pauseWarning = false;
-        toast.success('Mercado Reaberto', 'A negociação de XAU/USD está disponível novamente.');
+        if (settings?.alert_market_reopen_dashboard) {
+          toast.success('Mercado Reaberto', 'A negociação de XAU/USD está disponível novamente.');
+        }
       }
-      // Reinicia todos os avisos na abertura semanal
       if (prevStatus === 'CLOSED' && status === 'OPEN') {
-          notificationsSent.current = { pauseWarning: false, closeWarning: false };
-          toast.success('Mercado Aberto', 'A semana de negociação para XAU/USD começou.');
+        notificationsSent.current = { pauseWarning: false, closeWarning: false };
+        if (settings?.alert_market_reopen_dashboard) {
+            toast.success('Mercado Aberto', 'A semana de negociação para XAU/USD começou.');
+        }
       }
 
-      const timeToNextEvent = (nextEventTime.getTime() - now.getTime()) / (1000 * 60); // em minutos
+      const timeToNextEvent = (nextEventTime.getTime() - now.getTime()) / (1000 * 60); // in minutes
 
-      // Aviso de pausa diária
-      if (status === 'OPEN' && nextEventStatus === 'PAUSED' && timeToNextEvent > 0 && timeToNextEvent <= 10 && !notificationsSent.current.pauseWarning) {
+      // Daily pause warning
+      if (
+        status === 'OPEN' &&
+        nextEventStatus === 'PAUSED' &&
+        timeToNextEvent > 0 &&
+        timeToNextEvent <= 10 &&
+        !notificationsSent.current.pauseWarning &&
+        settings?.alert_pause_warning_dashboard
+      ) {
         toast.warning('Pausa Diária Iminente', `O mercado XAU/USD entrará em pausa às ${nextEventTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`);
         notificationsSent.current.pauseWarning = true;
       }
 
-      // Aviso de fecho semanal
-      if (status === 'OPEN' && nextEventStatus === 'CLOSED' && timeToNextEvent > 0 && timeToNextEvent <= 30 && !notificationsSent.current.closeWarning) {
+      // Weekly close warning
+      if (
+        status === 'OPEN' &&
+        nextEventStatus === 'CLOSED' &&
+        timeToNextEvent > 0 &&
+        timeToNextEvent <= 30 &&
+        !notificationsSent.current.closeWarning &&
+        settings?.alert_weekly_close_warning_dashboard
+      ) {
         toast.warning('Fechamento Semanal Iminente', `O mercado XAU/USD encerrará às ${nextEventTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`);
         notificationsSent.current.closeWarning = true;
       }
       
-      // Notificação de início da pausa
-      if (prevStatus === 'OPEN' && status === 'PAUSED') {
-          toast.info('Mercado em Pausa', `O mercado XAU/USD está em pausa. A negociação será retomada às ${nextEventTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`);
+      // Pause start notification
+      if (prevStatus === 'OPEN' && status === 'PAUSED' && settings?.alert_pause_start_dashboard) {
+          toast.info('Mercado em Pausa', `A negociação será retomada às ${nextEventTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`);
       }
 
-      // Atualiza o estado anterior para o próximo ciclo
       prevStatusRef.current = status;
     };
 
-    updateStatus(); // Chamada inicial
-    const intervalId = setInterval(updateStatus, 15 * 1000); // Verifica a cada 15 segundos
+    updateStatus();
+    const intervalId = setInterval(updateStatus, 15 * 1000);
 
     return () => clearInterval(intervalId);
-  }, [toast]);
+  }, [toast, settings, settingsLoading]);
 
   return statusInfo;
 };

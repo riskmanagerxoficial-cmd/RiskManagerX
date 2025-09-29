@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { PriceProvider } from './contexts/PriceContext'
+import { SettingsProvider } from './contexts/SettingsContext'
 import { LandingPage } from './components/landing/LandingPage'
 import { AuthForm } from './components/auth/AuthForm'
 import { Header } from './components/layout/Header'
@@ -26,6 +27,7 @@ import { APIPage } from './components/pages/APIPage'
 import { DisclaimerPage } from './components/pages/DisclaimerPage'
 import { GrowthSimulatorPage } from './components/pages/GrowthSimulatorPage'
 import { TradingJournalPage } from './components/pages/TradingJournalPage'
+import { SettingsPage } from './components/pages/SettingsPage'
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth()
@@ -63,6 +65,8 @@ const AppContent: React.FC = () => {
       
       <Route path="/journal" element={user ? <TradingJournalPage /> : <Navigate to="/auth" replace />} />
 
+      <Route path="/settings" element={user ? <SettingsPage /> : <Navigate to="/auth" replace />} />
+
       {/* Footer Pages Routes */}
       <Route path="/about" element={<AboutPage />} />
       <Route path="/contact" element={<ContactPage />} />
@@ -87,9 +91,11 @@ function App() {
     <Router>
       <ToastProvider>
         <AuthProvider>
-          <PriceProvider>
-            <AppContent />
-          </PriceProvider>
+          <SettingsProvider>
+            <PriceProvider>
+              <AppContent />
+            </PriceProvider>
+          </SettingsProvider>
         </AuthProvider>
       </ToastProvider>
     </Router>
