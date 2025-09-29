@@ -1,24 +1,22 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, Percent, Repeat, Target, DollarSign, BarChart } from 'lucide-react';
-import { StatsCard } from '../dashboard/StatsCard';
-import { JournalStats } from '../../contexts/JournalContext';
+import { GenericPageLayout } from './GenericPageLayout';
 
-interface StatsGridProps {
-  stats: JournalStats;
-}
-
-const formatCurrency = (value: number) => `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-export const StatsGrid: React.FC<StatsGridProps> = ({ stats }) => {
+export const DocumentationPage: React.FC = () => {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-      <StatsCard title="Total de Trades" value={stats.totalTrades.toString()} icon={Repeat} glow="cyan" />
-      <StatsCard title="Winrate" value={`${stats.winrate.toFixed(1)}%`} icon={Percent} trend={stats.winrate >= 50 ? 'up' : 'down'} glow="blue" />
-      <StatsCard title="Lucro Líquido" value={formatCurrency(stats.netProfit)} prefix={stats.netProfit < 0 ? '-' : ''} icon={DollarSign} trend={stats.netProfit >= 0 ? 'up' : 'down'} glow="purple" />
-      <StatsCard title="Payoff Ratio" value={stats.payoffRatio.toFixed(2)} icon={Target} glow="cyan" />
-      <StatsCard title="Drawdown Máx." value={`${stats.maxDrawdown.toFixed(2)}%`} icon={TrendingDown} trend="down" glow="blue" />
-      <StatsCard title="Expectativa" value={formatCurrency(stats.expectancy)} prefix={stats.expectancy < 0 ? '-' : ''} icon={BarChart} trend={stats.expectancy >= 0 ? 'up' : 'down'} glow="purple" />
-      <StatsCard title="Média P/L" value={formatCurrency(stats.avgProfitLoss)} prefix={stats.avgProfitLoss < 0 ? '-' : ''} icon={TrendingUp} trend={stats.avgProfitLoss >= 0 ? 'up' : 'down'} glow="cyan" />
-    </div>
+    <GenericPageLayout title="Documentação">
+      <p>Bem-vindo à documentação oficial do <strong>RiskManagerX</strong>. Aqui você encontrará guias detalhados, tutoriais e referências para aproveitar ao máximo nossa plataforma.</p>
+      
+      <h2>Em Construção</h2>
+      <p>Nossa equipe está trabalhando para criar uma documentação completa e intuitiva. Em breve, você terá acesso a:</p>
+      
+      <ul>
+        <li>Guias de início rápido.</li>
+        <li>Explicações detalhadas de cada cálculo e métrica.</li>
+        <li>Tutoriais em vídeo sobre simulação de cenários.</li>
+        <li>Documentação completa da API (para usuários Premium).</li>
+      </ul>
+      
+      <p>Agradecemos sua paciência. Enquanto isso, explore nossa <a href="/help">Central de Ajuda</a> para respostas a perguntas frequentes.</p>
+    </GenericPageLayout>
   );
 };

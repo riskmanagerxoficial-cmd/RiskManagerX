@@ -1,10 +1,105 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+export type MarketStatus = 'OPEN' | 'PAUSED' | 'CLOSED';
 
-export default defineConfig({
-  plugins: [react()],
-  
-  optimizeDeps: {
-    exclude: ['lucide-react'],
-  },
-});
+export interface MarketStatusInfo {
+  status: MarketStatus;
+  message: string;
+  nextEventTime: Date;
+  nextEventStatus: MarketStatus;
+}
+
+// Todos os horários estão em UTC para consistência universal.
+const WEEKLY_OPEN_DAY = 0; // Domingo
+const WEEKLY_OPEN_HOUR = 22;
+const WEEKLY_OPEN_MINUTE = 5;
+
+const WEEKLY_CLOSE_DAY = 5; // Sexta-feira
+const WEEKLY_CLOSE_HOUR = 20;
+const WEEKLY_CLOSE_MINUTE = 58;
+
+// A pausa diária ocorre de segunda a quinta-feira.
+const DAILY_PAUSE_START_HOUR = 20;
+const DAILY_PAUSE_START_MINUTE = 58;
+const DAILY_PAUSE_END_HOUR = 22;
+const DAILY_PAUSE_END_MINUTE = 1;
+
+function getNextUTCDay(now: Date, targetDay: number): Date {
+  const result = new Date(now);
+  const currentDay = now.getUTCDay();
+  const daysToAdd = (targetDay - currentDay + 7) % 7;
+  result.setUTCDate(now.getUTCDate() + daysToAdd);
+  return result;
+}
+
+export function getMarketStatus(now: Date): MarketStatusInfo {
+  const day = now.getUTCDay(); // 0 = Domingo, 6 = Sábado
+  const hour = now.getUTCHours();
+  const minute = now.getUTCMinutes();
+
+  const isWeekend = 
+    (day === WEEKLY_CLOSE_DAY && (hour > WEEKLY_CLOSE_HOUR || (hour === WEEKLY_CLOSE_HOUR && minute >= WEEKLY_CLOSE_MINUTE))) ||
+    (day === 6) ||
+    (day === WEEKLY_OPEN_DAY && (hour < WEEKLY_OPEN_HOUR || (hour === WEEKLY_OPEN_HOUR && minute < WEEKLY_OPEN_MINUTE)));
+
+  if (isWeekend) {
+    const nextOpen = getNextUTCDay(now, WEEKLY_OPEN_DAY);
+    nextOpen.setUTCHours(WEEKLY_OPEN_HOUR, WEEKLY_OPEN_MINUTE, 0, 0);
+    // Se já passou do horário de abertura no domingo, calcula para o próximo domingo
+    if (now.getTime() > nextOpen.getTime()) {
+        nextOpen.setUTCDate(nextOpen.getUTCDate() + 7);
+    }
+    return {
+      status: 'CLOSED',
+      message: `Mercado fechado. Abertura às ${nextOpen.toLocaleTimeString('pt-BR', { weekday: 'long', hour: '2-digit', minute: '2-digit' })}.`,
+      nextEventTime: nextOpen,
+      nextEventStatus: 'OPEN',
+    };
+  }
+
+  const isDailyPause = 
+    (day >= 1 && day <= 4) && // Segunda a Quinta
+    (
+      (hour === DAILY_PAUSE_START_HOUR && minute >= DAILY_PAUSE_START_MINUTE) ||
+      (hour > DAILY_PAUSE_START_HOUR && hour < DAILY_PAUSE_END_HOUR) ||
+      (hour === DAILY_PAUSE_END_HOUR && minute < DAILY_PAUSE_END_MINUTE)
+    );
+
+  if (isDailyPause) {
+    const nextReopen = new Date(now);
+    nextReopen.setUTCHours(DAILY_PAUSE_END_HOUR, DAILY_PAUSE_END_MINUTE, 0, 0);
+    return {
+      status: 'PAUSED',
+      message: `Pausa diária. O mercado reabre às ${nextReopen.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`,
+      nextEventTime: nextReopen,
+      nextEventStatus: 'OPEN',
+    };
+  }
+
+  // Se chegou aqui, o mercado está aberto.
+  let nextEventTime: Date;
+  let nextEventStatus: MarketStatus;
+
+  // Verifica se o próximo evento é a pausa diária ou o fecho semanal.
+  if (day >= 1 && day <= 4) { // Segunda a Quinta
+    nextEventTime = new Date(now);
+    nextEventTime.setUTCHours(DAILY_PAUSE_START_HOUR, DAILY_PAUSE_START_MINUTE, 0, 0);
+    nextEventStatus = 'PAUSED';
+  } else { // Sexta-feira (ou Domingo/Segunda antes da primeira pausa)
+    nextEventTime = new Date(now);
+    nextEventTime.setUTCHours(WEEKLY_CLOSE_HOUR, WEEKLY_CLOSE_MINUTE, 0, 0);
+    if(day === 5) { // Apenas na sexta o próximo evento é o fecho
+        nextEventStatus = 'CLOSED';
+    } else { // Domingo ou Segunda, o próximo evento é a pausa
+        const nextPauseDay = getNextUTCDay(now, 1); // Próxima Segunda
+        nextPauseDay.setUTCHours(DAILY_PAUSE_START_HOUR, DAILY_PAUSE_START_MINUTE, 0, 0);
+        nextEventTime = nextPauseDay;
+        nextEventStatus = 'PAUSED';
+    }
+  }
+
+  return {
+    status: 'OPEN',
+    message: 'Mercado XAU/USD aberto para negociação.',
+    nextEventTime,
+    nextEventStatus,
+  };
+}

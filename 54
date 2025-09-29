@@ -1,10 +1,7 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
-import './index.css';
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+# Arquivo de exemplo para desenvolvimento local da Edge Function.
+# Preencha com suas credenciais do projeto Supabase para testar a função localmente.
+# Em produção (deploy), configure estas variáveis como segredos no seu projeto Supabase.
+SUPABASE_URL="YOUR_SUPABASE_URL"
+SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
+SUPABASE_SERVICE_ROLE_KEY="YOUR_SUPABASE_SERVICE_ROLE_KEY"
+FINNHUB_API_KEY="YOUR_FINNHUB_API_KEY"

@@ -1,82 +1,85 @@
-/*
-# [Operation Name]
-Recreate user_settings Table
+import React, { useState, useMemo } from 'react';
+import { Modal } from '../../ui/Modal';
+import { useDashboard } from '../../../contexts/DashboardContext';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 
-## Query Description: [This script corrects a schema mismatch by dropping the existing `user_settings` table and recreating it with the correct column structure and security policies. Any previously saved user settings will be lost, but this is necessary to align the database with the application code. Default settings will be regenerated for users upon their next login.]
+export const ScenarioSimulatorModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  const { formData, calculation } = useDashboard();
+  const [priceChange, setPriceChange] = useState(0);
 
-## Metadata:
-- Schema-Category: ["Structural", "Dangerous"]
-- Impact-Level: ["Medium"]
-- Requires-Backup: [false]
-- Reversible: [false]
+  const pipDenominator = formData.asset.includes('JPY') ? 1000 : 10000;
+  const maxPips = calculation.maxMovement > 0 ? Math.min(calculation.maxMovement, 500) : 500;
 
-## Structure Details:
-- Drops table: `public.user_settings`
-- Creates table: `public.user_settings` with the correct columns.
-- Creates RLS policies for select and update.
-- Adds an auto-update trigger for the `updated_at` column.
+  const simulated = useMemo(() => {
+    const priceMove = priceChange / pipDenominator;
+    const newPrice = formData.currentPrice + priceMove;
+    const pnl = priceChange * calculation.pipValue;
+    const newEquity = formData.accountBalance + pnl;
+    const newMarginLevel = calculation.marginRequired > 0 ? (newEquity / calculation.marginRequired) * 100 : 0;
 
-## Security Implications:
-- RLS Status: [Enabled]
-- Policy Changes: [Yes]
-- Auth Requirements: [Policies are based on `auth.uid()`]
+    return { newPrice, pnl, newEquity, newMarginLevel };
+  }, [priceChange, formData, calculation]);
 
-## Performance Impact:
-- Indexes: [Primary key index will be recreated]
-- Triggers: [Adds a new `updated_at` trigger]
-- Estimated Impact: [Low, as the table is expected to have few rows per user.]
-*/
+  const pnlColor = simulated.pnl >= 0 ? 'text-green-400' : 'text-red-400';
 
--- Drop the existing table to ensure a clean slate
-DROP TABLE IF EXISTS public.user_settings;
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Simulador de Cenários" size="lg">
+      <div className="space-y-6">
+        <div>
+          <label htmlFor="price-slider" className="block text-sm font-medium text-dark-muted mb-2">
+            Variação de Preço (pips): <span className={`font-mono ${pnlColor}`}>{priceChange.toFixed(1)}</span>
+          </label>
+          <input
+            id="price-slider"
+            type="range"
+            min={-maxPips}
+            max={maxPips}
+            step="0.1"
+            value={priceChange}
+            onChange={(e) => setPriceChange(parseFloat(e.target.value))}
+            className="w-full h-2 bg-dark-border rounded-lg appearance-none cursor-pointer"
+          />
+          <div className="flex justify-between text-xs text-dark-muted mt-1">
+            <span>-{maxPips} pips</span>
+            <span>0 pips</span>
+            <span>+{maxPips} pips</span>
+          </div>
+        </div>
 
--- Recreate the table with the correct column names and structure
-CREATE TABLE public.user_settings (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    alert_pause_warning_dashboard BOOLEAN NOT NULL DEFAULT true,
-    alert_pause_warning_email BOOLEAN NOT NULL DEFAULT false,
-    alert_pause_warning_push BOOLEAN NOT NULL DEFAULT false,
-    alert_pause_start_dashboard BOOLEAN NOT NULL DEFAULT true,
-    alert_pause_start_email BOOLEAN NOT NULL DEFAULT false,
-    alert_pause_start_push BOOLEAN NOT NULL DEFAULT false,
-    alert_market_reopen_dashboard BOOLEAN NOT NULL DEFAULT true,
-    alert_market_reopen_email BOOLEAN NOT NULL DEFAULT false,
-    alert_market_reopen_push BOOLEAN NOT NULL DEFAULT false,
-    alert_weekly_close_warning_dashboard BOOLEAN NOT NULL DEFAULT true,
-    alert_weekly_close_warning_email BOOLEAN NOT NULL DEFAULT false,
-    alert_weekly_close_warning_push BOOLEAN NOT NULL DEFAULT false,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
+          <div className="bg-dark-bg/50 rounded-xl p-4">
+            <p className="text-sm text-dark-muted">Lucro/Prejuízo (P/L)</p>
+            <p className={`text-2xl font-bold font-mono ${pnlColor}`}>
+              {simulated.pnl >= 0 ? '+' : ''}${simulated.pnl.toFixed(2)}
+            </p>
+          </div>
+          <div className="bg-dark-bg/50 rounded-xl p-4">
+            <p className="text-sm text-dark-muted">Novo Saldo (Equity)</p>
+            <p className="text-2xl font-bold font-mono text-dark-text">
+              ${simulated.newEquity.toFixed(2)}
+            </p>
+          </div>
+        </div>
 
--- Add comments for clarity
-COMMENT ON TABLE public.user_settings IS 'Stores user-specific notification preferences.';
-COMMENT ON COLUMN public.user_settings.id IS 'Links to the user in auth.users.';
+        <div className="bg-dark-bg/50 rounded-xl p-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-dark-muted">Nível de Margem Simulado</span>
+            <span className={`text-lg font-bold font-mono ${simulated.newMarginLevel > 100 ? 'text-green-400' : 'text-red-400'}`}>
+              {simulated.newMarginLevel.toFixed(2)}%
+            </span>
+          </div>
+          <div className="w-full bg-dark-border rounded-full h-2.5 mt-2 overflow-hidden transform-gpu">
+            <div
+              className={`h-2.5 rounded-full ${simulated.newMarginLevel > 100 ? 'bg-green-400' : 'bg-red-400'}`}
+              style={{ width: `${Math.min(simulated.newMarginLevel, 200)}%` }}
+            ></div>
+          </div>
+        </div>
 
--- Enable Row Level Security
-ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
-
--- Create policies to ensure users can only access their own settings
-CREATE POLICY "Allow individual read access" ON public.user_settings FOR SELECT
-    USING (auth.uid() = id);
-
-CREATE POLICY "Allow individual update access" ON public.user_settings FOR UPDATE
-    USING (auth.uid() = id)
-    WITH CHECK (auth.uid() = id);
-
--- Function to handle automatic `updated_at` timestamp
-CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = timezone('utc', now());
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger to update the `updated_at` column on any change
-CREATE TRIGGER on_user_settings_updated
-BEFORE UPDATE ON public.user_settings
-FOR EACH ROW
-EXECUTE FUNCTION public.handle_updated_at();
-
--- Add the table to the Supabase publication for real-time updates
-ALTER PUBLICATION supabase_realtime ADD TABLE public.user_settings;
+        <div className="text-xs text-dark-muted text-center">
+          Esta é uma simulação e não considera swaps ou comissões.
+        </div>
+      </div>
+    </Modal>
+  );
+};

@@ -1,180 +1,38 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
-import { supabase, Database } from '../lib/supabase';
-import { useAuth } from './AuthContext';
-import { useToast } from './ToastContext';
-import { format } from 'date-fns';
+/*
+          # [Fix] Consolidate RLS Policies for user_settings
+          [This script provides a definitive fix for the Row-Level Security issues on the 'user_settings' table. It removes all previous, separate policies and replaces them with a single, comprehensive policy that grants users full control (SELECT, INSERT, UPDATE, DELETE) over their own settings row, identified by their user ID. This resolves the "new row violates RLS policy" error that occurred during the creation of default settings for new users.]
 
-type Trade = Database['public']['Tables']['trades']['Row'];
-type NewTrade = Database['public']['Tables']['trades']['Insert'];
+          ## Query Description: ["This operation cleans up and consolidates security policies on the 'user_settings' table. It is a safe and non-destructive operation for user data, ensuring that security rules are correctly and simply applied."]
+          
+          ## Metadata:
+          - Schema-Category: ["Security", "Structural"]
+          - Impact-Level: ["Low"]
+          - Requires-Backup: [false]
+          - Reversible: [true]
+          
+          ## Structure Details:
+          - Tables affected: [public.user_settings]
+          - Operations: [DROP POLICY, CREATE POLICY]
+          
+          ## Security Implications:
+          - RLS Status: [Enabled]
+          - Policy Changes: [Yes]
+          - Auth Requirements: [User must be authenticated]
+          
+          ## Performance Impact:
+          - Indexes: [No change]
+          - Triggers: [No change]
+          - Estimated Impact: [None]
+          */
 
-export interface JournalStats {
-  totalTrades: number;
-  totalWins: number;
-  totalLosses: number;
-  winrate: number;
-  netProfit: number;
-  avgProfit: number;
-  avgLoss: number;
-  payoffRatio: number;
-  maxDrawdown: number;
-  expectancy: number;
-  avgProfitLoss: number;
-  winrateByAsset: { [asset: string]: { wins: number; total: number; winrate: number } };
-}
+-- Drop all previous policies to ensure a clean state
+DROP POLICY IF EXISTS "Allow individual user read access" ON public.user_settings;
+DROP POLICY IF EXISTS "Allow individual user update access" ON public.user_settings;
+DROP POLICY IF EXISTS "Allow individual user insert access" ON public.user_settings;
 
-interface JournalContextType {
-  trades: Trade[];
-  stats: JournalStats;
-  equityCurve: { day: string; balance: number }[];
-  loading: boolean;
-  error: string | null;
-  addTrade: (tradeData: NewTrade) => Promise<void>;
-  fetchTrades: () => Promise<void>;
-}
-
-const JournalContext = createContext<JournalContextType | undefined>(undefined);
-
-export const useJournal = () => {
-  const context = useContext(JournalContext);
-  if (!context) {
-    throw new Error('useJournal must be used within a JournalProvider');
-  }
-  return context;
-};
-
-export const JournalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, signOut } = useAuth();
-  const toast = useToast();
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchTrades = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const { data, error } = await supabase
-        .from('trades')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('trade_date', { ascending: true }); // Ascending for equity curve calculation
-      if (error) throw error;
-      setTrades(data || []);
-    } catch (err: any) {
-      if (err?.code === 'PGRST303' || err?.message?.includes('JWT expired')) {
-        setError('Sua sessão expirou. Você será desconectado.');
-        toast.error('Sessão expirada', 'Por favor, faça login novamente.');
-        setTimeout(() => signOut(), 3000);
-      } else {
-        setError('Falha ao carregar operações.');
-        console.error(err);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [user, signOut, toast]);
-
-  useEffect(() => {
-    fetchTrades();
-  }, [fetchTrades]);
-
-  const addTrade = async (tradeData: Omit<NewTrade, 'user_id'>) => {
-    if (!user) throw new Error("Usuário não autenticado.");
-    try {
-      const { data, error } = await supabase
-        .from('trades')
-        .insert({ ...tradeData, user_id: user.id })
-        .select();
-      if (error) throw error;
-      if (data) {
-        setTrades(prev => [...prev, ...data].sort((a, b) => new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()));
-      }
-    } catch (err: any) {
-      if (err?.code === 'PGRST303' || err?.message?.includes('JWT expired')) {
-        toast.error('Sessão expirada', 'Não foi possível salvar. Faça login novamente.');
-        setTimeout(() => signOut(), 3000);
-        // Não relança o erro para evitar toast duplicado no formulário
-      } else {
-        // Para outros erros, relança para que o formulário possa tratá-los
-        throw err;
-      }
-    }
-  };
-
-  const { stats, equityCurve } = useMemo(() => {
-    const totalTrades = trades.length;
-    if (totalTrades === 0) {
-      const defaultStats: JournalStats = { totalTrades: 0, totalWins: 0, totalLosses: 0, winrate: 0, netProfit: 0, avgProfit: 0, avgLoss: 0, payoffRatio: 0, maxDrawdown: 0, expectancy: 0, avgProfitLoss: 0, winrateByAsset: {} };
-      return { stats: defaultStats, equityCurve: [] };
-    }
-
-    const wins = trades.filter(t => t.result_usd > 0);
-    const losses = trades.filter(t => t.result_usd < 0);
-
-    const totalWins = wins.length;
-    const totalLosses = losses.length;
-    const winrate = totalTrades > 0 ? (totalWins / totalTrades) * 100 : 0;
-    const netProfit = trades.reduce((acc, t) => acc + t.result_usd, 0);
-
-    const totalProfit = wins.reduce((acc, t) => acc + t.result_usd, 0);
-    const totalLoss = losses.reduce((acc, t) => acc + t.result_usd, 0);
-
-    const avgProfit = totalWins > 0 ? totalProfit / totalWins : 0;
-    const avgLoss = totalLosses > 0 ? Math.abs(totalLoss / totalLosses) : 0;
-    const payoffRatio = avgLoss > 0 ? avgProfit / avgLoss : 0;
-
-    const lossRate = 1 - (winrate / 100);
-    const expectancy = (winrate / 100 * avgProfit) - (lossRate * avgLoss);
-    const avgProfitLoss = totalTrades > 0 ? netProfit / totalTrades : 0;
-
-    // Equity Curve and Drawdown
-    let peak = 0;
-    let maxDrawdown = 0;
-    let currentBalance = 0;
-    const equityCurveData = trades.map(trade => {
-      currentBalance += trade.result_usd;
-      if (currentBalance > peak) {
-        peak = currentBalance;
-      }
-      const drawdown = peak > 0 ? ((peak - currentBalance) / peak) * 100 : 0;
-      if (drawdown > maxDrawdown) {
-        maxDrawdown = drawdown;
-      }
-      return { day: format(new Date(trade.trade_date), 'dd/MM'), balance: currentBalance };
-    });
-
-    // Winrate by Asset
-    const winrateByAsset = trades.reduce<JournalStats['winrateByAsset']>((acc, trade) => {
-      if (!acc[trade.asset]) {
-        acc[trade.asset] = { wins: 0, total: 0, winrate: 0 };
-      }
-      acc[trade.asset].total++;
-      if (trade.result_usd > 0) {
-        acc[trade.asset].wins++;
-      }
-      acc[trade.asset].winrate = (acc[trade.asset].wins / acc[trade.asset].total) * 100;
-      return acc;
-    }, {});
-
-    const calculatedStats: JournalStats = { totalTrades, totalWins, totalLosses, winrate, netProfit, avgProfit, avgLoss, payoffRatio, maxDrawdown, expectancy, avgProfitLoss, winrateByAsset };
-
-    return { stats: calculatedStats, equityCurve: equityCurveData };
-  }, [trades]);
-
-  const value = {
-    trades: [...trades].sort((a, b) => new Date(b.trade_date).getTime() - new Date(a.trade_date).getTime()), // Descending for table display
-    stats,
-    equityCurve,
-    loading,
-    error,
-    addTrade,
-    fetchTrades,
-  };
-
-  return (
-    <JournalContext.Provider value={value}>
-      {children}
-    </JournalContext.Provider>
-  );
-};
+-- Create a single, consolidated policy for all actions
+CREATE POLICY "Allow full access for own settings"
+ON public.user_settings
+FOR ALL
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);

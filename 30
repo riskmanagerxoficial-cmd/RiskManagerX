@@ -1,24 +1,26 @@
 import React from 'react';
 import { GenericPageLayout } from './GenericPageLayout';
 
-export const CookiesPage: React.FC = () => {
+export const PrivacyPolicyPage: React.FC = () => {
   return (
-    <GenericPageLayout title="Política de Cookies">
+    <GenericPageLayout title="Política de Privacidade">
       <p>Última atualização: [Data]</p>
+      <p>A sua privacidade é importante para nós. É política do RiskManagerX respeitar a sua privacidade em relação a qualquer informação sua que possamos coletar no site RiskManagerX, e outros sites que possuímos e operamos.</p>
       
-      <h2>O que são cookies?</h2>
-      <p>Cookies são pequenos arquivos de texto que são armazenados no seu computador ou dispositivo móvel quando você visita um site. Eles são amplamente utilizados para fazer os sites funcionarem, ou funcionarem de forma mais eficiente, bem como para fornecer informações aos proprietários do site.</p>
+      <h2>1. Informações que Coletamos</h2>
+      <p>Coletamos informações que você nos fornece diretamente, como quando você cria uma conta (e-mail, nome). Também coletamos informações automaticamente quando você usa nossos serviços, como dados de uso e informações do dispositivo.</p>
       
-      <h2>Como usamos cookies</h2>
-      <p>Utilizamos cookies para os seguintes fins:</p>
-      <ul>
-        <li><strong>Cookies Essenciais:</strong> Necessários para a operação do nosso site, como manter sua sessão de login ativa.</li>
-        <li><strong>Cookies de Desempenho e Análise:</strong> Nos permitem reconhecer e contar o número de visitantes e ver como os visitantes se movem pelo nosso site. Isso nos ajuda a melhorar a forma como nosso site funciona.</li>
-        <li><strong>Cookies de Funcionalidade:</strong> Usados para reconhecê-lo quando você retorna ao nosso site. Isso nos permite personalizar nosso conteúdo para você e lembrar suas preferências.</li>
-      </ul>
+      <h2>2. Como Usamos Suas Informações</h2>
+      <p>Usamos as informações que coletamos para operar, manter e fornecer os recursos e a funcionalidade do Serviço, para nos comunicarmos com você, para monitorar e melhorar nosso Serviço e para fins de segurança.</p>
       
-      <h2>Gerenciando Cookies</h2>
-      <p>Você pode controlar e/ou excluir cookies como desejar. Você pode excluir todos os cookies que já estão no seu computador e pode configurar a maioria dos navegadores para impedir que eles sejam colocados. Se você fizer isso, no entanto, talvez seja necessário ajustar manualmente algumas preferências sempre que visitar um site, e alguns serviços e funcionalidades podem não funcionar.</p>
+      <h2>3. Compartilhamento de Informações</h2>
+      <p>Não compartilhamos suas informações pessoais com terceiros, exceto conforme descrito nesta Política de Privacidade ou com o seu consentimento. Podemos compartilhar informações com fornecedores de serviços terceirizados que nos ajudam a operar nosso negócio (como provedores de infraestrutura e processadores de pagamento).</p>
+      
+      <h2>4. Segurança dos Dados</h2>
+      <p>Empregamos medidas de segurança padrão da indústria para proteger suas informações. No entanto, nenhum método de transmissão pela Internet ou método de armazenamento eletrônico é 100% seguro.</p>
+      
+      <h2>5. Seus Direitos</h2>
+      <p>Você tem o direito de acessar, corrigir ou excluir suas informações pessoais. Para mais informações, consulte nossa página sobre a <a href="/lgpd">LGPD</a> ou entre em contato conosco.</p>
     </GenericPageLayout>
   );
 };

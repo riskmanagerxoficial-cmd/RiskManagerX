@@ -1,40 +1,140 @@
-import React from 'react'
-import { motion } from 'framer-motion'
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { User, Session } from '@supabase/supabase-js'
+import { supabase } from '../lib/supabase'
 
-interface CardProps {
-  children: React.ReactNode
-  className?: string
-  hover?: boolean
-  glow?: 'cyan' | 'blue' | 'purple' | 'none'
+interface AuthContextType {
+  user: User | null
+  session: Session | null
+  loading: boolean
+  signIn: (email: string, password: string) => Promise<void>
+  signUp: (email: string, password: string, fullName: string) => Promise<void>
+  signOut: () => Promise<void>
+  resendConfirmation: (email: string) => Promise<void>
 }
 
-export const Card: React.FC<CardProps> = ({
-  children,
-  className = '',
-  hover = true,
-  glow = 'none'
-}) => {
-  const glowClasses = {
-    cyan: 'border-neon-cyan/30 hover:border-neon-cyan/60 hover:shadow-glow-cyan',
-    blue: 'border-neon-blue/30 hover:border-neon-blue/60 hover:shadow-glow-blue',
-    purple: 'border-neon-purple/30 hover:border-neon-purple/60 hover:shadow-glow-purple',
-    none: 'border-dark-border hover:border-neon-cyan/30'
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true);
+    // Função assíncrona para inicializar a sessão de forma robusta.
+    const initializeSession = async () => {
+      try {
+        // Tenta obter a sessão atual. O Supabase tentará usar o refresh token, se existir.
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        // Se houver um erro (como 'Invalid Refresh Token'), o Supabase já o trata
+        // retornando uma sessão nula. Nós explicitamente tratamos esse caso.
+        if (error) {
+          console.warn('AuthContext: Erro ao recuperar a sessão inicial (comportamento esperado em caso de token inválido):', error.message);
+          setSession(null);
+          setUser(null);
+        } else {
+          setSession(session);
+          setUser(session?.user ?? null);
+        }
+      } catch (e) {
+        // Captura de segurança para erros inesperados durante a inicialização.
+        console.error('AuthContext: Falha crítica na inicialização da sessão:', e);
+        setSession(null);
+        setUser(null);
+      } finally {
+        // Garante que o estado de 'loading' seja finalizado.
+        setLoading(false);
+      }
+    };
+
+    initializeSession();
+
+    // Escuta por mudanças no estado de autenticação (login, logout, etc.).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Limpa a subscrição quando o componente é desmontado.
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    
+    if (error) {
+      throw error
+    }
+    
+    return data
+  }
+
+  const signUp = async (email: string, password: string, fullName: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+        emailRedirectTo: `${window.location.origin}/`
+      }
+    })
+    
+    if (error) {
+      throw error
+    }
+    
+    return data
+  }
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  }
+
+  const resendConfirmation = async (email: string) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`
+      }
+    })
+    
+    if (error) {
+      throw error
+    }
+  }
+
+  const value = {
+    user,
+    session,
+    loading,
+    signIn,
+    signUp,
+    signOut,
+    resendConfirmation,
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      whileHover={hover ? { y: -2 } : {}}
-      className={`
-        bg-dark-card rounded-2xl border backdrop-blur-sm p-6
-        transition-all duration-300
-        ${glowClasses[glow]}
-        ${className}
-      `}
-    >
+    <AuthContext.Provider value={value}>
       {children}
-    </motion.div>
+    </AuthContext.Provider>
   )
 }

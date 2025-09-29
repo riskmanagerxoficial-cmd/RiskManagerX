@@ -1,23 +1,60 @@
-import React from 'react';
-import { GenericPageLayout } from './GenericPageLayout';
+import React from 'react'
+import { motion } from 'framer-motion'
+import { Loader2 } from 'lucide-react'
 
-export const HelpCenterPage: React.FC = () => {
+interface ButtonProps {
+  children: React.ReactNode
+  onClick?: () => void
+  type?: 'button' | 'submit' | 'reset'
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost'
+  size?: 'sm' | 'md' | 'lg'
+  loading?: boolean
+  disabled?: boolean
+  className?: string
+}
+
+export const Button: React.FC<ButtonProps> = ({
+  children,
+  onClick,
+  type = 'button',
+  variant = 'primary',
+  size = 'md',
+  loading = false,
+  disabled = false,
+  className = ''
+}) => {
+  const baseClasses = 'inline-flex items-center justify-center rounded-xl font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-bg'
+  
+  const variantClasses = {
+    primary: 'bg-gradient-to-r from-neon-cyan to-neon-blue text-dark-bg hover:shadow-glow-cyan border border-neon-cyan/50',
+    secondary: 'bg-dark-card text-dark-text border border-dark-border hover:border-neon-cyan/50 hover:shadow-glow-cyan',
+    outline: 'border-2 border-neon-cyan text-neon-cyan hover:bg-neon-cyan hover:text-dark-bg',
+    ghost: 'text-dark-text hover:bg-dark-card hover:text-neon-cyan'
+  }
+  
+  const sizeClasses = {
+    sm: 'px-3 py-2 text-sm',
+    md: 'px-4 py-2.5 text-base',
+    lg: 'px-6 py-3 text-lg'
+  }
+
   return (
-    <GenericPageLayout title="Central de Ajuda">
-      <p>Bem-vindo à nossa Central de Ajuda. Encontre respostas para as perguntas mais comuns sobre o RiskManagerX.</p>
-      
-      <h2>Perguntas Frequentes (FAQ)</h2>
-      
-      <h3>Como o cálculo da margem é feito?</h3>
-      <p>O cálculo da margem é baseado na fórmula: <code>(Preço do Ativo * Tamanho do Contrato * Lotes) / Alavancagem</code>. O tamanho do contrato varia por ativo (ex: 100 para XAU/USD).</p>
-      
-      <h3>O que é o nível de Stop Out?</h3>
-      <p>É o nível de margem (em %) no qual sua corretora começará a fechar suas posições automaticamente para evitar que seu saldo fique negativo. Você deve configurar este valor de acordo com sua corretora.</p>
-      
-      <h3>Posso conectar minha conta de trading diretamente?</h3>
-      <p>A integração direta com corretoras é uma funcionalidade exclusiva do nosso plano <strong>Premium</strong> e está em desenvolvimento. Com ela, você poderá monitorar seu risco em tempo real com base em suas posições abertas.</p>
-      
-      <p>Se sua dúvida não foi respondida, por favor, <a href="/contact">entre em contato</a> com nosso suporte.</p>
-    </GenericPageLayout>
-  );
-};
+    <motion.button
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      type={type}
+      onClick={onClick}
+      disabled={disabled || loading}
+      className={`
+        ${baseClasses}
+        ${variantClasses[variant]}
+        ${sizeClasses[size]}
+        ${disabled || loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+        ${className}
+      `}
+    >
+      {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+      {children}
+    </motion.button>
+  )
+}

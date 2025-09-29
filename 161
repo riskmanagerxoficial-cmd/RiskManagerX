@@ -1,124 +1,133 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { supabase, Database } from '../lib/supabase';
-import { useAuth } from './AuthContext';
-import { useToast } from './ToastContext';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal } from '../../ui/Modal';
+import { useAuth } from '../../../contexts/AuthContext';
+import { supabase, Database } from '../../../lib/supabase';
+import { Loader2, ServerCrash, RefreshCw } from 'lucide-react';
+import { useDashboard } from '../../../contexts/DashboardContext';
+import { useToast } from '../../../contexts/ToastContext';
 
-type UserSettings = Database['public']['Tables']['user_settings']['Row'];
+type Simulation = Database['public']['Tables']['simulations']['Row'];
 
-interface SettingsContextType {
-  settings: UserSettings | null;
-  loading: boolean;
-  updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
-}
-
-const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
-
-export const useSettings = () => {
-  const context = useContext(SettingsContext);
-  if (!context) {
-    throw new Error('useSettings must be used within a SettingsProvider');
-  }
-  return context;
-};
-
-const defaultSettings: Omit<UserSettings, 'id' | 'updated_at'> = {
-  alert_pause_warning_dashboard: true,
-  alert_pause_warning_email: false,
-  alert_pause_warning_push: false,
-  alert_pause_start_dashboard: true,
-  alert_pause_start_email: false,
-  alert_pause_start_push: false,
-  alert_market_reopen_dashboard: true,
-  alert_market_reopen_email: false,
-  alert_market_reopen_push: false,
-  alert_weekly_close_warning_dashboard: true,
-  alert_weekly_close_warning_email: false,
-  alert_weekly_close_warning_push: false,
-};
-
-export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const HistoryModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { user, signOut } = useAuth();
+  const { setFormData } = useDashboard();
   const toast = useToast();
-  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [simulations, setSimulations] = useState<Simulation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchOrCreateSettings = useCallback(async () => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+  const handleReloadSimulation = (sim: Simulation) => {
+    setFormData(prev => ({
+      ...prev,
+      asset: sim.asset,
+      lotSize: sim.lot_size,
+      leverage: sim.leverage,
+      accountBalance: sim.account_balance,
+      stopOutLevel: prev.stopOutLevel,
+    }));
+    toast.info('Simulação recarregada na calculadora.');
+    onClose();
+  };
 
+  const fetchHistory = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
+    setError(null);
     try {
-      // Abordagem atómica e definitiva:
-      // 1. `upsert` cria ou atualiza o registo com base na chave primária (`id`).
-      // 2. `.select().single()` retorna a linha resultante numa única chamada à base de dados.
-      const { data, error } = await supabase
-        .from('user_settings')
-        .upsert({ id: user.id, ...defaultSettings })
-        .select()
-        .single();
+      const { data, error: dbError } = await supabase
+        .from('simulations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-      if (error) {
-        // Trata o erro de sessão expirada de forma amigável.
-        if (error.message.includes('JWT expired')) {
-          toast.error('Sessão expirada', 'Por favor, faça login novamente.');
-          signOut();
-          return;
-        }
-        // Lança outros erros (ex: RLS) para serem apanhados pelo catch.
-        throw error;
-      }
-      
-      setSettings(data);
-
+      if (dbError) throw dbError;
+      setSimulations(data || []);
     } catch (err: any) {
-      console.error("Error fetching or creating user settings:", err);
-      toast.error('Erro nas Configurações', 'Não foi possível carregar as suas configurações.');
+      if (err?.code === 'PGRST303' || err?.message?.includes('JWT expired')) {
+        setError('Sua sessão expirou. Você será desconectado.');
+        toast.error('Sessão expirada', 'Por favor, faça login novamente.');
+        setTimeout(() => {
+          onClose();
+          signOut();
+        }, 3000);
+      } else {
+        setError('Falha ao carregar o histórico. Tente novamente.');
+        console.error(err);
+      }
     } finally {
       setLoading(false);
     }
-  }, [user, signOut, toast]);
+  }, [user, signOut, toast, onClose]);
 
   useEffect(() => {
-    if (user) {
-      fetchOrCreateSettings();
-    } else {
-      // Limpa as configurações e para o loading no logout.
-      setSettings(null);
-      setLoading(false);
+    if (isOpen) {
+      fetchHistory();
     }
-  }, [user, fetchOrCreateSettings]);
+  }, [isOpen, fetchHistory]);
 
-  const updateSettings = async (newSettings: Partial<UserSettings>) => {
-    if (!user || !settings) return;
-
-    const currentSettings = settings;
-    const updatedSettings = { ...currentSettings, ...newSettings };
-    setSettings(updatedSettings); // Atualização otimista
-
-    const { error } = await supabase
-      .from('user_settings')
-      .update(newSettings)
-      .eq('id', user.id);
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 text-dark-muted">
+          <Loader2 className="w-8 h-8 animate-spin mb-4" />
+          <p>Carregando histórico...</p>
+        </div>
+      );
+    }
 
     if (error) {
-      console.error("Error updating settings:", error);
-      toast.error('Falha ao Salvar', 'Não foi possível salvar as alterações.');
-      setSettings(currentSettings); // Reverte em caso de erro
-      throw error;
+      return (
+        <div className="flex flex-col items-center justify-center h-64 text-red-400">
+          <ServerCrash className="w-8 h-8 mb-4" />
+          <p>{error}</p>
+        </div>
+      );
     }
-  };
 
-  const value = {
-    settings,
-    loading,
-    updateSettings,
+    if (simulations.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 text-dark-muted">
+          <p>Nenhuma simulação salva ainda.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-h-96 overflow-y-auto pr-2">
+        <table className="w-full text-sm text-left">
+          <thead className="text-xs text-dark-muted uppercase bg-dark-bg/50">
+            <tr>
+              <th scope="col" className="px-4 py-3">Ativo</th>
+              <th scope="col" className="px-4 py-3">Lote</th>
+              <th scope="col" className="px-4 py-3">Risco %</th>
+              <th scope="col" className="px-4 py-3">Data</th>
+              <th scope="col" className="px-4 py-3">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {simulations.map((sim) => (
+              <tr key={sim.id} className="border-b border-dark-border hover:bg-dark-card">
+                <td className="px-4 py-3 font-medium text-dark-text">{sim.asset}</td>
+                <td className="px-4 py-3 text-dark-muted font-mono">{sim.lot_size}</td>
+                <td className="px-4 py-3 text-dark-muted font-mono">{sim.risk_percentage.toFixed(2)}%</td>
+                <td className="px-4 py-3 text-dark-muted">{new Date(sim.created_at).toLocaleDateString('pt-BR')}</td>
+                <td className="px-4 py-3">
+                  <button onClick={() => handleReloadSimulation(sim)} className="text-neon-cyan hover:text-neon-blue">
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   return (
-    <SettingsContext.Provider value={value}>
-      {children}
-    </SettingsContext.Provider>
+    <Modal isOpen={isOpen} onClose={onClose} title="Histórico de Simulações" size="xl">
+      {renderContent()}
+    </Modal>
   );
 };

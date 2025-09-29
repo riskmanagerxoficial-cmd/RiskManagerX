@@ -1,24 +1,82 @@
-import React from 'react';
-import { TrendingUp, TrendingDown, Percent, Repeat, Target, DollarSign, BarChart } from 'lucide-react';
-import { StatsCard } from '../dashboard/StatsCard';
-import { JournalStats } from '../../contexts/JournalContext';
+/*
+# [Operation Name]
+Recreate user_settings Table
 
-interface StatsGridProps {
-  stats: JournalStats;
-}
+## Query Description: [This script corrects a schema mismatch by dropping the existing `user_settings` table and recreating it with the correct column structure and security policies. Any previously saved user settings will be lost, but this is necessary to align the database with the application code. Default settings will be regenerated for users upon their next login.]
 
-const formatCurrency = (value: number) => `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+## Metadata:
+- Schema-Category: ["Structural", "Dangerous"]
+- Impact-Level: ["Medium"]
+- Requires-Backup: [false]
+- Reversible: [false]
 
-export const StatsGrid: React.FC<StatsGridProps> = ({ stats }) => {
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-      <StatsCard title="Total de Trades" value={stats.totalTrades.toString()} icon={Repeat} glow="cyan" />
-      <StatsCard title="Winrate" value={`${stats.winrate.toFixed(1)}%`} icon={Percent} trend={stats.winrate >= 50 ? 'up' : 'down'} glow="blue" />
-      <StatsCard title="Lucro Líquido" value={formatCurrency(stats.netProfit)} prefix={stats.netProfit < 0 ? '-' : ''} icon={DollarSign} trend={stats.netProfit >= 0 ? 'up' : 'down'} glow="purple" />
-      <StatsCard title="Payoff Ratio" value={stats.payoffRatio.toFixed(2)} icon={Target} glow="cyan" />
-      <StatsCard title="Drawdown Máx." value={`${stats.maxDrawdown.toFixed(2)}%`} icon={TrendingDown} trend="down" glow="blue" />
-      <StatsCard title="Expectativa" value={formatCurrency(stats.expectancy)} prefix={stats.expectancy < 0 ? '-' : ''} icon={BarChart} trend={stats.expectancy >= 0 ? 'up' : 'down'} glow="purple" />
-      <StatsCard title="Média P/L" value={formatCurrency(stats.avgProfitLoss)} prefix={stats.avgProfitLoss < 0 ? '-' : ''} icon={TrendingUp} trend={stats.avgProfitLoss >= 0 ? 'up' : 'down'} glow="cyan" />
-    </div>
-  );
-};
+## Structure Details:
+- Drops table: `public.user_settings`
+- Creates table: `public.user_settings` with the correct columns.
+- Creates RLS policies for select and update.
+- Adds an auto-update trigger for the `updated_at` column.
+
+## Security Implications:
+- RLS Status: [Enabled]
+- Policy Changes: [Yes]
+- Auth Requirements: [Policies are based on `auth.uid()`]
+
+## Performance Impact:
+- Indexes: [Primary key index will be recreated]
+- Triggers: [Adds a new `updated_at` trigger]
+- Estimated Impact: [Low, as the table is expected to have few rows per user.]
+*/
+
+-- Drop the existing table to ensure a clean slate
+DROP TABLE IF EXISTS public.user_settings;
+
+-- Recreate the table with the correct column names and structure
+CREATE TABLE public.user_settings (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    alert_pause_warning_dashboard BOOLEAN NOT NULL DEFAULT true,
+    alert_pause_warning_email BOOLEAN NOT NULL DEFAULT false,
+    alert_pause_warning_push BOOLEAN NOT NULL DEFAULT false,
+    alert_pause_start_dashboard BOOLEAN NOT NULL DEFAULT true,
+    alert_pause_start_email BOOLEAN NOT NULL DEFAULT false,
+    alert_pause_start_push BOOLEAN NOT NULL DEFAULT false,
+    alert_market_reopen_dashboard BOOLEAN NOT NULL DEFAULT true,
+    alert_market_reopen_email BOOLEAN NOT NULL DEFAULT false,
+    alert_market_reopen_push BOOLEAN NOT NULL DEFAULT false,
+    alert_weekly_close_warning_dashboard BOOLEAN NOT NULL DEFAULT true,
+    alert_weekly_close_warning_email BOOLEAN NOT NULL DEFAULT false,
+    alert_weekly_close_warning_push BOOLEAN NOT NULL DEFAULT false,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Add comments for clarity
+COMMENT ON TABLE public.user_settings IS 'Stores user-specific notification preferences.';
+COMMENT ON COLUMN public.user_settings.id IS 'Links to the user in auth.users.';
+
+-- Enable Row Level Security
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
+
+-- Create policies to ensure users can only access their own settings
+CREATE POLICY "Allow individual read access" ON public.user_settings FOR SELECT
+    USING (auth.uid() = id);
+
+CREATE POLICY "Allow individual update access" ON public.user_settings FOR UPDATE
+    USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);
+
+-- Function to handle automatic `updated_at` timestamp
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = timezone('utc', now());
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to update the `updated_at` column on any change
+CREATE TRIGGER on_user_settings_updated
+BEFORE UPDATE ON public.user_settings
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_updated_at();
+
+-- Add the table to the Supabase publication for real-time updates
+ALTER PUBLICATION supabase_realtime ADD TABLE public.user_settings;

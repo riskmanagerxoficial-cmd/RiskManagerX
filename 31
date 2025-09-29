@@ -1,13 +1,50 @@
 import React from 'react';
 import { GenericPageLayout } from './GenericPageLayout';
+import { CheckCircle } from 'lucide-react';
 
-export const DisclaimerPage: React.FC = () => {
+export const SystemStatusPage: React.FC = () => {
   return (
-    <GenericPageLayout title="Aviso Legal">
-      <p>As informações e cotações disponibilizadas nesta plataforma são fornecidas apenas para fins informativos e educacionais. O <strong>RiskManagerX</strong> não garante a exatidão, completude ou atualização dos dados apresentados, que podem sofrer atrasos ou falhas técnicas.</p>
-      <p>O uso desta aplicação não constitui recomendação de investimento, consultoria financeira ou qualquer tipo de aconselhamento profissional. O utilizador é o único responsável pelas decisões tomadas com base nas informações apresentadas.</p>
-      <p>O <strong>RiskManagerX</strong> não se responsabiliza por perdas, danos diretos ou indiretos resultantes do uso dos dados ou do funcionamento do sistema.</p>
-      <p>Ao continuar a utilizar a plataforma, o utilizador declara que compreende e aceita estes termos.</p>
+    <GenericPageLayout title="Status do Sistema">
+      <div className="space-y-6">
+        <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-center justify-between">
+          <span className="text-green-400 font-medium">Todos os sistemas operacionais.</span>
+          <CheckCircle className="w-6 h-6 text-green-400" />
+        </div>
+        
+        <div>
+          <h2 className="text-2xl font-semibold text-dark-text mb-4">Status dos Componentes</h2>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 bg-dark-card rounded-lg">
+              <span className="text-dark-text">Plataforma Web</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                <span className="text-green-400">Operacional</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-dark-card rounded-lg">
+              <span className="text-dark-text">API de Autenticação</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                <span className="text-green-400">Operacional</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-dark-card rounded-lg">
+              <span className="text-dark-text">Banco de Dados</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                <span className="text-green-400">Operacional</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-dark-card rounded-lg">
+              <span className="text-dark-text">API de Mercado (Externa)</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                <span className="text-green-400">Operacional</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </GenericPageLayout>
   );
 };

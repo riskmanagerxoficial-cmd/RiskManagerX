@@ -1,25 +1,40 @@
-import React from 'react';
-import { GenericPageLayout } from './GenericPageLayout';
+import React from 'react'
+import { motion } from 'framer-motion'
 
-export const LGPDPage: React.FC = () => {
+interface CardProps {
+  children: React.ReactNode
+  className?: string
+  hover?: boolean
+  glow?: 'cyan' | 'blue' | 'purple' | 'none'
+}
+
+export const Card: React.FC<CardProps> = ({
+  children,
+  className = '',
+  hover = true,
+  glow = 'none'
+}) => {
+  const glowClasses = {
+    cyan: 'border-neon-cyan/30 hover:border-neon-cyan/60 hover:shadow-glow-cyan',
+    blue: 'border-neon-blue/30 hover:border-neon-blue/60 hover:shadow-glow-blue',
+    purple: 'border-neon-purple/30 hover:border-neon-purple/60 hover:shadow-glow-purple',
+    none: 'border-dark-border hover:border-neon-cyan/30'
+  }
+
   return (
-    <GenericPageLayout title="Conformidade com a LGPD">
-      <p>O <strong>RiskManagerX</strong> está comprometido em proteger seus dados pessoais e em cumprir com a Lei Geral de Proteção de Dados (LGPD) do Brasil.</p>
-      
-      <h2>Seus Direitos</h2>
-      <p>De acordo com a LGPD, você tem o direito de:</p>
-      <ul>
-        <li>Confirmar a existência de tratamento de seus dados.</li>
-        <li>Acessar seus dados.</li>
-        <li>Corrigir dados incompletos, inexatos ou desatualizados.</li>
-        <li>Anonimização, bloqueio ou eliminação de dados desnecessários.</li>
-        <li>Portabilidade dos dados a outro fornecedor de serviço.</li>
-        <li>Eliminação dos dados pessoais tratados com o consentimento do titular.</li>
-        <li>Informação sobre o compartilhamento de seus dados.</li>
-      </ul>
-      
-      <h2>Como Exercer Seus Direitos</h2>
-      <p>Para exercer qualquer um dos seus direitos sob a LGPD, entre em contato conosco através do e-mail <a href="mailto:privacidade@riskmanagerx.com">privacidade@riskmanagerx.com</a>. Para mais detalhes sobre como tratamos seus dados, consulte nossa <a href="/privacy-policy">Política de Privacidade</a>.</p>
-    </GenericPageLayout>
-  );
-};
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      whileHover={hover ? { y: -2 } : {}}
+      className={`
+        bg-dark-card rounded-2xl border backdrop-blur-sm p-6
+        transition-all duration-300
+        ${glowClasses[glow]}
+        ${className}
+      `}
+    >
+      {children}
+    </motion.div>
+  )
+}

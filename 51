@@ -1,28 +1,21 @@
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useCallback } from 'react';
+export interface MarketData {
+  [symbol: string]: {
+    price: number;
+  };
+}
 
-export const useNavigateAndScroll = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+// Mapeamento de símbolos de exibição para símbolos da API Finnhub
+export const SYMBOL_MAP: { [key: string]: string } = {
+  'XAU/USD': 'OANDA:XAU_USD',
+  'EUR/USD': 'OANDA:EUR_USD',
+  'GBP/USD': 'OANDA:GBP_USD',
+  'USD/JPY': 'OANDA:USD_JPY',
+};
 
-  const navigateAndScroll = useCallback((path: string) => {
-    const isHashLink = path.startsWith('/#');
-
-    if (isHashLink) {
-      const targetId = path.substring(2);
-      
-      if (location.pathname === '/') {
-        const element = document.getElementById(targetId);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth' });
-        }
-      } else {
-        navigate('/', { state: { scrollTo: targetId } });
-      }
-    } else {
-      navigate(path);
-    }
-  }, [navigate, location.pathname]);
-
-  return navigateAndScroll;
+// Valores base para fallback
+export const BASE_PRICES: MarketData = {
+  'XAU/USD': { price: 2350.00 },
+  'EUR/USD': { price: 1.0850 },
+  'GBP/USD': { price: 1.2700 },
+  'USD/JPY': { price: 155.00 },
 };

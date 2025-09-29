@@ -1,130 +1,24 @@
-import React, { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Modal } from '../ui/Modal';
-import { Input } from '../ui/Input';
-import { Button } from '../ui/Button';
-import { SUPPORTED_SYMBOLS } from '../../services/marketData';
-import { Database } from '../../lib/supabase';
-import { format } from 'date-fns';
+import React from 'react';
+import { TrendingUp, TrendingDown, Percent, Repeat, Target, DollarSign, BarChart } from 'lucide-react';
+import { StatsCard } from '../dashboard/StatsCard';
+import { JournalStats } from '../../contexts/JournalContext';
 
-type Trade = Database['public']['Tables']['trades']['Row'];
-
-const tradeSchema = z.object({
-  asset: z.string().min(1, "Ativo é obrigatório"),
-  direction: z.enum(['buy', 'sell'], { errorMap: () => ({ message: "Selecione a direção" }) }),
-  lot_size: z.coerce.number().positive("Lote deve ser positivo"),
-  entry_price: z.coerce.number().positive("Preço de entrada deve ser positivo"),
-  stop_loss: z.coerce.number().optional().nullable(),
-  take_profit: z.coerce.number().optional().nullable(),
-  result_usd: z.coerce.number(),
-  notes: z.string().optional().nullable(),
-  trade_date: z.string().refine(val => !isNaN(Date.parse(val)), { message: "Data inválida" }),
-});
-
-export type TradeFormData = z.infer<typeof tradeSchema>;
-
-interface TradeFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (data: TradeFormData, tradeId?: string) => Promise<void>;
-  tradeToEdit: Trade | null;
+interface StatsGridProps {
+  stats: JournalStats;
 }
 
-export const TradeFormModal: React.FC<TradeFormModalProps> = ({ isOpen, onClose, onSave, tradeToEdit }) => {
-  const isEditMode = !!tradeToEdit;
+const formatCurrency = (value: number) => `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<TradeFormData>({
-    resolver: zodResolver(tradeSchema),
-  });
-
-  useEffect(() => {
-    if (isOpen) {
-      if (isEditMode && tradeToEdit) {
-        const formattedDate = format(new Date(tradeToEdit.trade_date), "yyyy-MM-dd'T'HH:mm");
-        reset({ ...tradeToEdit, notes: tradeToEdit.notes || '', trade_date: formattedDate });
-      } else {
-        const now = format(new Date(), "yyyy-MM-dd'T'HH:mm");
-        reset({
-          asset: 'XAU/USD',
-          direction: 'buy',
-          lot_size: 0.01,
-          entry_price: 0,
-          stop_loss: null,
-          take_profit: null,
-          result_usd: 0,
-          notes: '',
-          trade_date: now
-        });
-      }
-    }
-  }, [isOpen, isEditMode, tradeToEdit, reset]);
-
-  const onSubmit = async (data: TradeFormData) => {
-    await onSave(data, tradeToEdit?.id);
-    onClose();
-  };
-
+export const StatsGrid: React.FC<StatsGridProps> = ({ stats }) => {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isEditMode ? 'Editar Operação' : 'Registrar Nova Operação'}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div>
-            <label className="block text-sm font-medium text-dark-text mb-2">Data e Hora da Operação</label>
-            <Input type="datetime-local" {...register('trade_date')} error={errors.trade_date?.message} />
-            <p className="text-xs text-dark-muted mt-1.5">
-              Pode alterar este campo para registar operações de dias ou horas anteriores.
-            </p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-dark-text mb-2">Ativo</label>
-            <select
-              {...register('asset')}
-              className="w-full px-4 py-2.5 bg-dark-card border border-dark-border rounded-xl text-dark-text focus:outline-none focus:ring-2 focus:ring-neon-blue/50 focus:border-neon-blue"
-            >
-              {SUPPORTED_SYMBOLS.map(symbol => (
-                <option key={symbol} value={symbol}>{symbol}</option>
-              ))}
-            </select>
-            {errors.asset && <p className="text-red-500 text-xs mt-1">{errors.asset.message}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-dark-text mb-2">Direção</label>
-            <select
-              {...register('direction')}
-              className="w-full px-4 py-2.5 bg-dark-card border border-dark-border rounded-xl text-dark-text focus:outline-none focus:ring-2 focus:ring-neon-blue/50 focus:border-neon-blue"
-            >
-              <option value="">Selecione...</option>
-              <option value="buy">Compra (Buy)</option>
-              <option value="sell">Venda (Sell)</option>
-            </select>
-            {errors.direction && <p className="text-red-500 text-xs mt-1">{errors.direction.message}</p>}
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input label="Tamanho do Lote" type="number" step="0.01" {...register('lot_size')} error={errors.lot_size?.message} />
-          <Input label="Preço de Entrada" type="number" step="any" {...register('entry_price')} error={errors.entry_price?.message} />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input label="Stop Loss (Opcional)" type="number" step="any" {...register('stop_loss')} error={errors.stop_loss?.message} />
-          <Input label="Take Profit (Opcional)" type="number" step="any" {...register('take_profit')} error={errors.take_profit?.message} />
-        </div>
-        <Input label="Resultado (USD)" type="number" step="any" {...register('result_usd')} error={errors.result_usd?.message} />
-        <div>
-          <label className="block text-sm font-medium text-dark-text mb-2">Notas (Opcional)</label>
-          <textarea
-            {...register('notes')}
-            rows={3}
-            className="w-full px-4 py-2.5 bg-dark-card border border-dark-border rounded-xl text-dark-text focus:outline-none focus:ring-2 focus:ring-neon-blue/50 focus:border-neon-blue"
-            placeholder="Ex: Notícia importante, motivo da entrada..."
-          />
-        </div>
-        <div className="flex justify-end space-x-3 pt-4">
-          <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" loading={isSubmitting} disabled={isSubmitting}>Salvar</Button>
-        </div>
-      </form>
-    </Modal>
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+      <StatsCard title="Total de Trades" value={stats.totalTrades.toString()} icon={Repeat} glow="cyan" />
+      <StatsCard title="Winrate" value={`${stats.winrate.toFixed(1)}%`} icon={Percent} trend={stats.winrate >= 50 ? 'up' : 'down'} glow="blue" />
+      <StatsCard title="Lucro Líquido" value={formatCurrency(stats.netProfit)} prefix={stats.netProfit < 0 ? '-' : ''} icon={DollarSign} trend={stats.netProfit >= 0 ? 'up' : 'down'} glow="purple" />
+      <StatsCard title="Payoff Ratio" value={stats.payoffRatio.toFixed(2)} icon={Target} glow="cyan" />
+      <StatsCard title="Drawdown Máx." value={`${stats.maxDrawdown.toFixed(2)}%`} icon={TrendingDown} trend="down" glow="blue" />
+      <StatsCard title="Expectativa" value={formatCurrency(stats.expectancy)} prefix={stats.expectancy < 0 ? '-' : ''} icon={BarChart} trend={stats.expectancy >= 0 ? 'up' : 'down'} glow="purple" />
+      <StatsCard title="Média P/L" value={formatCurrency(stats.avgProfitLoss)} prefix={stats.avgProfitLoss < 0 ? '-' : ''} icon={TrendingUp} trend={stats.avgProfitLoss >= 0 ? 'up' : 'down'} glow="cyan" />
+    </div>
   );
 };

@@ -1,85 +1,137 @@
-import React, { useState, useMemo } from 'react';
-import { Modal } from '../../ui/Modal';
-import { useDashboard } from '../../../contexts/DashboardContext';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import React, { useState } from 'react'
+import { motion } from 'framer-motion'
+import { Menu, X } from 'lucide-react'
+import { Button } from '../ui/Button'
+import { Logo } from '../ui/Logo'
+import { useNavigateAndScroll } from '../../hooks/useNavigateAndScroll'
 
-export const ScenarioSimulatorModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { formData, calculation } = useDashboard();
-  const [priceChange, setPriceChange] = useState(0);
+export const LandingHeader: React.FC = () => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const navigateAndScroll = useNavigateAndScroll()
 
-  const pipDenominator = formData.asset.includes('JPY') ? 1000 : 10000;
-  const maxPips = calculation.maxMovement > 0 ? Math.min(calculation.maxMovement, 500) : 500;
-
-  const simulated = useMemo(() => {
-    const priceMove = priceChange / pipDenominator;
-    const newPrice = formData.currentPrice + priceMove;
-    const pnl = priceChange * calculation.pipValue;
-    const newEquity = formData.accountBalance + pnl;
-    const newMarginLevel = calculation.marginRequired > 0 ? (newEquity / calculation.marginRequired) * 100 : 0;
-
-    return { newPrice, pnl, newEquity, newMarginLevel };
-  }, [priceChange, formData, calculation]);
-
-  const pnlColor = simulated.pnl >= 0 ? 'text-green-400' : 'text-red-400';
+  const handleNavigation = (path: string) => {
+    navigateAndScroll(path);
+    setMobileMenuOpen(false)
+  }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Simulador de Cenários" size="lg">
-      <div className="space-y-6">
-        <div>
-          <label htmlFor="price-slider" className="block text-sm font-medium text-dark-muted mb-2">
-            Variação de Preço (pips): <span className={`font-mono ${pnlColor}`}>{priceChange.toFixed(1)}</span>
-          </label>
-          <input
-            id="price-slider"
-            type="range"
-            min={-maxPips}
-            max={maxPips}
-            step="0.1"
-            value={priceChange}
-            onChange={(e) => setPriceChange(parseFloat(e.target.value))}
-            className="w-full h-2 bg-dark-border rounded-lg appearance-none cursor-pointer"
-          />
-          <div className="flex justify-between text-xs text-dark-muted mt-1">
-            <span>-{maxPips} pips</span>
-            <span>0 pips</span>
-            <span>+{maxPips} pips</span>
+    <motion.header
+      initial={{ y: -100 }}
+      animate={{ y: 0 }}
+      className="fixed top-0 w-full bg-dark-bg/80 backdrop-blur-sm border-b border-dark-border z-50"
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          {/* Logo */}
+          <Logo />
+
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center space-x-8">
+            <button
+              onClick={() => handleNavigation('/#benefits')}
+              className="text-dark-muted hover:text-neon-cyan transition-colors"
+            >
+              Benefícios
+            </button>
+            <button
+              onClick={() => handleNavigation('/#how-it-works')}
+              className="text-dark-muted hover:text-neon-cyan transition-colors"
+            >
+              Como Funciona
+            </button>
+            <button
+              onClick={() => handleNavigation('/#pricing')}
+              className="text-dark-muted hover:text-neon-cyan transition-colors"
+            >
+              Preços
+            </button>
+            <button
+              onClick={() => handleNavigation('/#testimonials')}
+              className="text-dark-muted hover:text-neon-cyan transition-colors"
+            >
+              Depoimentos
+            </button>
+          </nav>
+
+          {/* Desktop CTA */}
+          <div className="hidden md:flex items-center space-x-4">
+            <Button
+              onClick={() => handleNavigation('/auth')}
+              variant="outline"
+              size="sm"
+            >
+              Entrar
+            </Button>
+            <Button
+              onClick={() => handleNavigation('/auth')}
+              variant="primary"
+              size="sm"
+            >
+              Experimente Grátis
+            </Button>
           </div>
+
+          {/* Mobile menu button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden text-dark-text"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
-          <div className="bg-dark-bg/50 rounded-xl p-4">
-            <p className="text-sm text-dark-muted">Lucro/Prejuízo (P/L)</p>
-            <p className={`text-2xl font-bold font-mono ${pnlColor}`}>
-              {simulated.pnl >= 0 ? '+' : ''}${simulated.pnl.toFixed(2)}
-            </p>
-          </div>
-          <div className="bg-dark-bg/50 rounded-xl p-4">
-            <p className="text-sm text-dark-muted">Novo Saldo (Equity)</p>
-            <p className="text-2xl font-bold font-mono text-dark-text">
-              ${simulated.newEquity.toFixed(2)}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-dark-bg/50 rounded-xl p-4">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-dark-muted">Nível de Margem Simulado</span>
-            <span className={`text-lg font-bold font-mono ${simulated.newMarginLevel > 100 ? 'text-green-400' : 'text-red-400'}`}>
-              {simulated.newMarginLevel.toFixed(2)}%
-            </span>
-          </div>
-          <div className="w-full bg-dark-border rounded-full h-2.5 mt-2 overflow-hidden transform-gpu">
-            <div
-              className={`h-2.5 rounded-full ${simulated.newMarginLevel > 100 ? 'bg-green-400' : 'bg-red-400'}`}
-              style={{ width: `${Math.min(simulated.newMarginLevel, 200)}%` }}
-            ></div>
-          </div>
-        </div>
-
-        <div className="text-xs text-dark-muted text-center">
-          Esta é uma simulação e não considera swaps ou comissões.
-        </div>
+        {/* Mobile Navigation */}
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="md:hidden py-4 space-y-4"
+          >
+            <button
+              onClick={() => handleNavigation('/#benefits')}
+              className="block text-dark-muted hover:text-neon-cyan transition-colors"
+            >
+              Benefícios
+            </button>
+            <button
+              onClick={() => handleNavigation('/#how-it-works')}
+              className="block text-dark-muted hover:text-neon-cyan transition-colors"
+            >
+              Como Funciona
+            </button>
+            <button
+              onClick={() => handleNavigation('/#pricing')}
+              className="block text-dark-muted hover:text-neon-cyan transition-colors"
+            >
+              Preços
+            </button>
+            <button
+              onClick={() => handleNavigation('/#testimonials')}
+              className="block text-dark-muted hover:text-neon-cyan transition-colors"
+            >
+              Depoimentos
+            </button>
+            <div className="pt-4 space-y-2">
+              <Button
+                onClick={() => handleNavigation('/auth')}
+                variant="outline"
+                size="sm"
+                className="w-full"
+              >
+                Entrar
+              </Button>
+              <Button
+                onClick={() => handleNavigation('/auth')}
+                variant="primary"
+                size="sm"
+                className="w-full"
+              >
+                Experimente Grátis
+              </Button>
+            </div>
+          </motion.div>
+        )}
       </div>
-    </Modal>
-  );
-};
+    </motion.header>
+  )
+}

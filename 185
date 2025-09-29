@@ -1,0 +1,96 @@
+import React from 'react';
+import { ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { Card } from '../ui/Card';
+import { JournalStats } from '../../contexts/JournalContext';
+
+interface ChartsSectionProps {
+  equityCurve: { day: string; balance: number }[];
+  stats: JournalStats;
+}
+
+const COLORS = ['#FFFFFF', '#0088FE', '#FFBB28', '#FF8042', '#AF19FF', '#00C49F'];
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-dark-card/80 backdrop-blur-sm border border-dark-border p-3 rounded-lg">
+        <p className="label text-neon-cyan">{`Data: ${label}`}</p>
+        <p className="intro text-dark-text">{`Saldo: ${payload[0].value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`}</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+export const ChartsSection: React.FC<ChartsSectionProps> = ({ equityCurve, stats }) => {
+  const winrateByAssetData = Object.entries(stats.winrateByAsset).map(([asset, data]) => ({
+    name: asset,
+    value: data.total, // Usar o total de trades para o tamanho da fatia
+    winrate: data.winrate,
+  }));
+
+  const values = equityCurve.map(d => d.balance);
+  const min = Math.min(0, ...values);
+  const max = Math.max(...values);
+  const padding = (max - min) * 0.1 || 10;
+  const domain = [Math.floor(min - padding), Math.ceil(max + padding)];
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className="lg:col-span-3">
+        <Card glow="cyan" className="h-full">
+          <h3 className="text-lg font-semibold text-dark-text mb-4">Curva de Capital</h3>
+          <div className="h-96">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={equityCurve} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#00ffff" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#00ffff" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 255, 255, 0.1)" />
+                <XAxis dataKey="day" stroke="#666" fontSize={12} />
+                <YAxis stroke="#666" fontSize={12} tickFormatter={(val) => `$${Number(val).toLocaleString()}`} domain={domain} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area type="monotone" dataKey="balance" stroke="#00ffff" strokeWidth={2} fillOpacity={1} fill="url(#colorBalance)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+      <div className="lg:col-span-2">
+        <Card glow="purple" className="h-full">
+          <h3 className="text-lg font-semibold text-dark-text mb-4">Winrate por Ativo</h3>
+          <div className="flex items-center h-96">
+            <div className="w-1/2 h-full">
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie data={winrateByAssetData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2}>
+                    {winrateByAssetData.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="focus:outline-none" />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value, name, props) => [`${props.payload.winrate.toFixed(1)}% Winrate`, `Trades: ${value}`]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="w-1/2 space-y-3 pl-4">
+              {winrateByAssetData.length > 0 ? winrateByAssetData.map((entry, index) => (
+                <div key={index} className="flex items-center justify-between text-sm">
+                  <span className="flex items-center">
+                    <span className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
+                    {entry.name}
+                  </span>
+                  <span className={`font-semibold ${entry.winrate >= 50 ? 'text-green-400' : 'text-red-400'}`}>{entry.winrate.toFixed(1)}%</span>
+                </div>
+              )) : (
+                <p className="text-sm text-dark-muted text-center">Sem dados de ativos.</p>
+              )}
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};

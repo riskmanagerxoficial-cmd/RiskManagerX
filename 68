@@ -1,38 +1,29 @@
-export interface MarketData {
-  [symbol: string]: {
-    price: number;
-  };
-}
+import React from 'react';
+import { motion } from 'framer-motion';
+import { useTradingStatus } from '../../hooks/useTradingStatus';
+import { Clock } from 'lucide-react';
 
-// Mapeamento de símbolos de exibição para símbolos da API Finnhub
-export const FINNHUB_SYMBOL_MAP: { [key: string]: string } = {
-  'XAU/USD': 'OANDA:XAU_USD',
-  'EUR/USD': 'OANDA:EUR_USD',
-  'GBP/USD': 'OANDA:GBP_USD',
-  'USD/JPY': 'OANDA:USD_JPY',
-  'BTC/USD': 'BINANCE:BTCUSDT',
-  'AAPL': 'AAPL',
-  'SPY': 'SPY',
-};
+export const TradingStatusBanner: React.FC = () => {
+  const statusInfo = useTradingStatus();
 
-// Lista de símbolos que a aplicação irá buscar na API
-export const SUPPORTED_SYMBOLS = [
-  'XAU/USD',
-  'EUR/USD',
-  'GBP/USD',
-  'USD/JPY',
-  'BTC/USD',
-  'AAPL',
-  'SPY',
-];
+  if (!statusInfo) {
+    return null; // Não renderiza nada até o estado ser determinado
+  }
 
-// Preços de fallback para o carregamento inicial ou em caso de falha da API
-export const BASE_PRICES: MarketData = {
-  'XAU/USD': { price: 2350.00 },
-  'EUR/USD': { price: 1.0850 },
-  'GBP/USD': { price: 1.2700 },
-  'USD/JPY': { price: 155.00 },
-  'BTC/USD': { price: 65000.00 },
-  'AAPL':    { price: 210.00 },
-  'SPY':     { price: 540.00 },
+  const Icon = statusInfo.icon || Clock;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className={`flex items-center gap-4 rounded-xl p-3 border mb-8 ${statusInfo.color}`}
+    >
+      <Icon className="w-6 h-6 flex-shrink-0" />
+      <div>
+        <p className="font-semibold text-sm text-dark-text">Status do Mercado XAU/USD</p>
+        <p className="text-sm">{statusInfo.message}</p>
+      </div>
+    </motion.div>
+  );
 };

@@ -1,6 +1,70 @@
-export default {
-    plugins: {
-        tailwindcss: {},
-        autoprefixer: {},
-    },
-};
+/*
+          # [Operation Name]
+          Create User Settings Table
+
+          [Description of what this operation does]
+          This script creates a new table `user_settings` to store individual user preferences for notifications and other application settings. It includes a foreign key relationship to the `auth.users` table to link settings to a specific user. It also creates a trigger to automatically insert default settings for new users.
+
+          ## Query Description: [This operation will create a new table for user settings and a trigger to populate it for new users. This is a non-destructive operation and is safe to run on a production database. No existing data will be affected.]
+          
+          ## Metadata:
+          - Schema-Category: "Structural"
+          - Impact-Level: "Low"
+          - Requires-Backup: false
+          - Reversible: true
+          
+          ## Structure Details:
+          - Table Created: `public.user_settings`
+          - Columns: `id` (references `auth.users`), `notify_pause_warning`, `notify_pause_start`, `notify_market_open`, `notify_close_warning`.
+          - Trigger Created: `on_new_user_create_settings` on `auth.users` table.
+          
+          ## Security Implications:
+          - RLS Status: Enabled
+          - Policy Changes: Yes (New policies for `user_settings` table)
+          - Auth Requirements: Users can only access their own settings.
+          
+          ## Performance Impact:
+          - Indexes: Primary key on `id`.
+          - Triggers: A new trigger is added to `auth.users` which will have a negligible performance impact on user sign-up.
+          - Estimated Impact: Low.
+          */
+
+-- 1. Create user_settings table
+CREATE TABLE public.user_settings (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    notify_pause_warning BOOLEAN NOT NULL DEFAULT TRUE,
+    notify_pause_start BOOLEAN NOT NULL DEFAULT TRUE,
+    notify_market_open BOOLEAN NOT NULL DEFAULT TRUE,
+    notify_close_warning BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 2. Enable Row Level Security
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
+
+-- 3. Create RLS policies
+CREATE POLICY "Users can view their own settings"
+ON public.user_settings FOR SELECT
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can update their own settings"
+ON public.user_settings FOR UPDATE
+USING (auth.uid() = id);
+
+-- 4. Create function to insert default settings for new user
+CREATE OR REPLACE FUNCTION public.handle_new_user_settings()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.user_settings (id)
+  VALUES (new.id);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 5. Create trigger to call the function on new user creation
+CREATE TRIGGER on_new_user_create_settings
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user_settings();
+
+-- 6. Grant usage to authenticated role
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_settings TO authenticated;

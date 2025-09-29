@@ -1,38 +1,101 @@
-/*
-          # [Fix] Consolidate RLS Policies for user_settings
-          [This script provides a definitive fix for the Row-Level Security issues on the 'user_settings' table. It removes all previous, separate policies and replaces them with a single, comprehensive policy that grants users full control (SELECT, INSERT, UPDATE, DELETE) over their own settings row, identified by their user ID. This resolves the "new row violates RLS policy" error that occurred during the creation of default settings for new users.]
+import React from 'react';
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { Card } from '../ui/Card';
+import { JournalStats } from '../../contexts/JournalContext';
 
-          ## Query Description: ["This operation cleans up and consolidates security policies on the 'user_settings' table. It is a safe and non-destructive operation for user data, ensuring that security rules are correctly and simply applied."]
-          
-          ## Metadata:
-          - Schema-Category: ["Security", "Structural"]
-          - Impact-Level: ["Low"]
-          - Requires-Backup: [false]
-          - Reversible: [true]
-          
-          ## Structure Details:
-          - Tables affected: [public.user_settings]
-          - Operations: [DROP POLICY, CREATE POLICY]
-          
-          ## Security Implications:
-          - RLS Status: [Enabled]
-          - Policy Changes: [Yes]
-          - Auth Requirements: [User must be authenticated]
-          
-          ## Performance Impact:
-          - Indexes: [No change]
-          - Triggers: [No change]
-          - Estimated Impact: [None]
-          */
+interface ChartsSectionProps {
+  equityCurve: { day: string; balance: number }[];
+  stats: JournalStats;
+}
 
--- Drop all previous policies to ensure a clean state
-DROP POLICY IF EXISTS "Allow individual user read access" ON public.user_settings;
-DROP POLICY IF EXISTS "Allow individual user update access" ON public.user_settings;
-DROP POLICY IF EXISTS "Allow individual user insert access" ON public.user_settings;
+const COLORS = ['#00C49F', '#FF8042', '#0088FE', '#FFBB28', '#AF19FF'];
 
--- Create a single, consolidated policy for all actions
-CREATE POLICY "Allow full access for own settings"
-ON public.user_settings
-FOR ALL
-USING (auth.uid() = id)
-WITH CHECK (auth.uid() = id);
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-dark-card/80 backdrop-blur-sm border border-dark-border p-3 rounded-lg">
+        <p className="label text-neon-cyan">{`Data: ${label}`}</p>
+        <p className="intro text-dark-text">{`Saldo: ${payload[0].value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`}</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+export const ChartsSection: React.FC<ChartsSectionProps> = ({ equityCurve, stats }) => {
+  const winLossData = [
+    { name: 'Lucro', value: stats.totalWins, fill: '#22c55e' },
+    { name: 'Prejuízo', value: stats.totalLosses, fill: '#ef4444' },
+  ];
+
+  const winrateByAssetData = Object.entries(stats.winrateByAsset).map(([asset, data]) => ({
+    name: asset,
+    winrate: data.winrate,
+  }));
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className="lg:col-span-3">
+        <Card glow="cyan" className="h-full">
+          <h3 className="text-lg font-semibold text-dark-text mb-4">Curva de Capital</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={equityCurve}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 255, 255, 0.1)" />
+                <XAxis dataKey="day" stroke="#666" fontSize={12} />
+                <YAxis stroke="#666" fontSize={12} tickFormatter={(val) => `$${Number(val).toLocaleString()}`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Line type="monotone" dataKey="balance" stroke="#00ffff" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+      <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
+        <Card glow="blue" className="h-full">
+          <h3 className="text-lg font-semibold text-dark-text mb-4">Proporção Ganhos/Perdas</h3>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie 
+                  data={winLossData} 
+                  dataKey="value" 
+                  nameKey="name" 
+                  cx="50%" 
+                  cy="50%" 
+                  outerRadius={60} 
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={false}
+                  fontSize={12}
+                >
+                  {winLossData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid #0080ff' }} formatter={(value) => `${value} trades`} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+        <Card glow="purple" className="h-full">
+          <h3 className="text-lg font-semibold text-dark-text mb-4">Winrate por Ativo</h3>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={winrateByAssetData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 0, 255, 0.1)" />
+                <XAxis dataKey="name" stroke="#666" fontSize={12} />
+                <YAxis domain={[0, 100]} stroke="#666" fontSize={12} tickFormatter={(val) => `${val}%`} />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(128, 0, 255, 0.1)' }} 
+                  contentStyle={{ backgroundColor: '#111', border: '1px solid #8000ff' }} 
+                  formatter={(value) => `${Number(value).toFixed(2)}%`}
+                />
+                <Bar dataKey="winrate" name="Winrate" fill="#AF19FF" barSize={30} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};

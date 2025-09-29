@@ -1,36 +1,61 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React from 'react'
+import { motion } from 'framer-motion'
+import { LucideIcon } from 'lucide-react'
+import { Card } from '../ui/Card'
 
-interface SwitchProps {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
+interface StatsCardProps {
+  title: string
+  value: string
+  subtitle?: string
+  icon: LucideIcon
+  trend?: 'up' | 'down' | 'neutral'
+  glow?: 'cyan' | 'blue' | 'purple' | 'none'
+  prefix?: string
+  suffix?: string
 }
 
-export const Switch: React.FC<SwitchProps> = ({ checked, onChange, disabled = false }) => {
-  const spring = {
-    type: 'spring',
-    stiffness: 700,
-    damping: 30
-  };
+export const StatsCard: React.FC<StatsCardProps> = ({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  trend = 'neutral',
+  glow = 'cyan',
+  prefix = '',
+  suffix = ''
+}) => {
+  const trendColors = {
+    up: 'text-green-400',
+    down: 'text-red-400',
+    neutral: 'text-dark-muted'
+  }
 
   return (
-    <div
-      className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-300 ${
-        checked ? 'bg-neon-cyan' : 'bg-dark-border'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-      onClick={() => !disabled && onChange(!checked)}
-    >
-      <motion.div
-        className="h-5 w-5 bg-white rounded-full shadow-lg"
-        layout
-        transition={spring}
-        style={{
-          position: 'absolute',
-          left: checked ? 'auto' : '2px',
-          right: checked ? '2px' : 'auto',
-        }}
-      />
-    </div>
-  );
-};
+    <Card glow={glow} className="relative overflow-hidden">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <p className="text-sm text-dark-muted">{title}</p>
+          <div className="flex items-baseline space-x-1">
+            {prefix && <span className="text-lg text-dark-muted">{prefix}</span>}
+            <motion.p
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              className="text-2xl font-bold text-dark-text font-mono"
+            >
+              {value}
+            </motion.p>
+            {suffix && <span className="text-lg text-dark-muted">{suffix}</span>}
+          </div>
+          {subtitle && (
+            <p className={`text-sm ${trendColors[trend]}`}>
+              {subtitle}
+            </p>
+          )}
+        </div>
+        <div className={`p-3 rounded-xl bg-gradient-to-br from-${glow === 'cyan' ? 'neon-cyan' : glow === 'blue' ? 'neon-blue' : 'neon-purple'}/20 to-transparent`}>
+          <Icon className={`w-6 h-6 text-${glow === 'cyan' ? 'neon-cyan' : glow === 'blue' ? 'neon-blue' : 'neon-purple'}`} />
+        </div>
+      </div>
+    </Card>
+  )
+}

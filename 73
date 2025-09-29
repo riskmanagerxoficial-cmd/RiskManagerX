@@ -1,86 +1,168 @@
-import React from 'react';
-import { ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Bell, Mail, Smartphone, Loader2 } from 'lucide-react';
+import { useSettings } from '../../contexts/SettingsContext';
+import { useToast } from '../../contexts/ToastContext';
+import { Header } from '../layout/Header';
+import { AppFooter } from '../layout/AppFooter';
 import { Card } from '../ui/Card';
-import { JournalStats } from '../../contexts/JournalContext';
+import { Button } from '../ui/Button';
+import { Switch } from '../ui/Switch';
 
-interface ChartsSectionProps {
-  equityCurve: { day: string; balance: number }[];
-  stats: JournalStats;
+type SettingsKey = keyof NonNullable<ReturnType<typeof useSettings>['settings']>;
+
+interface AlertSetting {
+  key: string;
+  label: string;
+  description: string;
 }
 
-const COLORS = ['#00C49F', '#FF8042', '#0088FE', '#FFBB28', '#AF19FF'];
+const alertSettings: AlertSetting[] = [
+  {
+    key: 'alert_pause_warning',
+    label: 'Aviso de Pausa Diária',
+    description: 'Notificação 10 minutos antes da pausa diária do mercado.',
+  },
+  {
+    key: 'alert_pause_start',
+    label: 'Início da Pausa Diária',
+    description: 'Notificação quando o mercado entra na pausa diária.',
+  },
+  {
+    key: 'alert_market_reopen',
+    label: 'Reabertura do Mercado',
+    description: 'Notificação quando o mercado reabre após a pausa.',
+  },
+  {
+    key: 'alert_weekly_close_warning',
+    label: 'Aviso de Fecho Semanal',
+    description: 'Notificação 30 minutos antes do fecho semanal do mercado.',
+  },
+];
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-dark-card/80 backdrop-blur-sm border border-dark-border p-3 rounded-lg">
-        <p className="label text-neon-cyan">{`Data: ${label}`}</p>
-        <p className="intro text-dark-text">{`Saldo: ${payload[0].value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`}</p>
-      </div>
-    );
-  }
-  return null;
-};
+export const SettingsPage: React.FC = () => {
+  const { settings, loading: loadingSettings, updateSettings } = useSettings();
+  const [localSettings, setLocalSettings] = useState(settings);
+  const [isSaving, setIsSaving] = useState(false);
+  const toast = useToast();
 
-export const ChartsSection: React.FC<ChartsSectionProps> = ({ equityCurve, stats }) => {
-  const winLossData = [
-    { name: 'Lucro', count: stats.totalWins, fill: '#22c55e' },
-    { name: 'Prejuízo', count: stats.totalLosses, fill: '#ef4444' },
-  ];
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    setLocalSettings(settings);
+  }, [settings]);
 
-  const winrateByAssetData = Object.entries(stats.winrateByAsset).map(([asset, data]) => ({
-    name: asset,
-    value: data.winrate,
-  }));
+  const handleToggle = (key: SettingsKey, value: boolean) => {
+    setLocalSettings(prev => prev ? { ...prev, [key]: value } : null);
+  };
+
+  const handleSave = async () => {
+    if (!localSettings) return;
+    setIsSaving(true);
+    try {
+      await updateSettings(localSettings);
+      toast.success('Configurações salvas com sucesso!');
+    } catch (error) {
+      toast.error('Não foi possível salvar as configurações.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const renderSkeleton = () => (
+    <div className="space-y-4 animate-pulse">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="bg-dark-bg/50 p-4 rounded-lg">
+          <div className="h-4 bg-dark-border rounded w-1/3 mb-2"></div>
+          <div className="h-3 bg-dark-border rounded w-2/3"></div>
+          <div className="flex justify-end space-x-8 mt-4">
+            <div className="h-6 w-11 bg-dark-border rounded-full"></div>
+            <div className="h-6 w-11 bg-dark-border rounded-full"></div>
+            <div className="h-6 w-11 bg-dark-border rounded-full"></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-      <div className="lg:col-span-3">
-        <Card glow="cyan" className="h-full">
-          <h3 className="text-lg font-semibold text-dark-text mb-4">Curva de Capital</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={equityCurve}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 255, 255, 0.1)" />
-                <XAxis dataKey="day" stroke="#666" fontSize={12} />
-                <YAxis stroke="#666" fontSize={12} tickFormatter={(val) => `$${Number(val).toLocaleString()}`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="balance" stroke="#00ffff" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+    <div className="min-h-screen bg-dark-bg flex flex-col">
+      <Header />
+      <main className="flex-grow py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-8">
+            <Link to="/dashboard">
+              <Button variant="ghost" className="text-dark-muted hover:text-neon-cyan">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar ao Dashboard
+              </Button>
+            </Link>
           </div>
-        </Card>
-      </div>
-      <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
-        <Card glow="blue" className="h-full">
-          <h3 className="text-lg font-semibold text-dark-text mb-4">Ganhos vs. Perdas</h3>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={winLossData} layout="vertical">
-                <XAxis type="number" stroke="#666" fontSize={12} />
-                <YAxis type="category" dataKey="name" stroke="#666" fontSize={12} width={60} />
-                <Tooltip cursor={{ fill: 'rgba(0, 128, 255, 0.1)' }} contentStyle={{ backgroundColor: '#111', border: '1px solid #0080ff' }} />
-                <Bar dataKey="count" barSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-        <Card glow="purple" className="h-full">
-          <h3 className="text-lg font-semibold text-dark-text mb-4">Winrate por Ativo</h3>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={winrateByAssetData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                  {winrateByAssetData.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid #8000ff' }} formatter={(value) => `${Number(value).toFixed(2)}%`} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <h1 className="text-4xl md:text-5xl font-display font-bold bg-gradient-to-r from-neon-cyan via-neon-blue to-neon-purple bg-clip-text text-transparent">
+              Configurações de Notificação
+            </h1>
+            <p className="text-dark-muted text-lg mt-2">
+              Escolha como e quando você quer ser alertado sobre os eventos do mercado.
+            </p>
+          </motion.div>
+
+          <Card glow="cyan" className="mt-8">
+            <h2 className="text-xl font-semibold text-dark-text mb-6">Alertas de Mercado (XAU/USD)</h2>
+            
+            {loadingSettings || !localSettings ? renderSkeleton() : (
+              <div className="space-y-6">
+                {alertSettings.map(setting => (
+                  <div key={setting.key} className="p-4 rounded-xl bg-dark-bg/50 border border-dark-border">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                      <div>
+                        <h3 className="font-medium text-dark-text">{setting.label}</h3>
+                        <p className="text-sm text-dark-muted">{setting.description}</p>
+                      </div>
+                      <div className="flex items-center justify-start md:justify-end space-x-6">
+                        <div className="flex flex-col items-center space-y-1">
+                          <Bell className="w-5 h-5 text-dark-muted" />
+                          <Switch
+                            checked={localSettings[`${setting.key}_dashboard` as SettingsKey] as boolean}
+                            onChange={checked => handleToggle(`${setting.key}_dashboard` as SettingsKey, checked)}
+                          />
+                        </div>
+                        <div className="flex flex-col items-center space-y-1">
+                          <Mail className="w-5 h-5 text-dark-muted" />
+                          <Switch
+                            checked={localSettings[`${setting.key}_email` as SettingsKey] as boolean}
+                            onChange={checked => handleToggle(`${setting.key}_email` as SettingsKey, checked)}
+                            disabled={true} // Feature futura
+                          />
+                        </div>
+                        <div className="flex flex-col items-center space-y-1">
+                          <Smartphone className="w-5 h-5 text-dark-muted" />
+                          <Switch
+                            checked={localSettings[`${setting.key}_push` as SettingsKey] as boolean}
+                            onChange={checked => handleToggle(`${setting.key}_push` as SettingsKey, checked)}
+                            disabled={true} // Feature futura
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-8 flex justify-end">
+              <Button onClick={handleSave} loading={isSaving} disabled={isSaving || loadingSettings}>
+                {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </main>
+      <AppFooter />
     </div>
   );
 };

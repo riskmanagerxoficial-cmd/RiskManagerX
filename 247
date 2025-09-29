@@ -1,0 +1,44 @@
+import React from 'react';
+import { format } from 'date-fns';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { Database } from '../../lib/supabase';
+import { AlertTriangle } from 'lucide-react';
+
+type Trade = Database['public']['Tables']['trades']['Row'];
+
+interface ConfirmDeleteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  trade: Trade;
+}
+
+export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({ isOpen, onClose, onConfirm, trade }) => {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Confirmar Exclusão" size="sm">
+      <div className="space-y-6">
+        <div className="flex items-start space-x-3">
+          <AlertTriangle className="w-10 h-10 text-red-500 flex-shrink-0" />
+          <div>
+            <p className="text-dark-text">Tem certeza que deseja excluir esta operação?</p>
+            <p className="text-sm text-dark-muted mt-1">Esta ação não pode ser desfeita.</p>
+          </div>
+        </div>
+
+        <div className="bg-dark-bg/50 rounded-xl p-4 border border-dark-border space-y-2 text-sm">
+          <p><span className="text-dark-muted">Ativo:</span> <span className="font-semibold text-dark-text">{trade.asset}</span></p>
+          <p><span className="text-dark-muted">Data:</span> <span className="font-semibold text-dark-text">{format(new Date(trade.trade_date), 'dd/MM/yyyy HH:mm')}</span></p>
+          <p><span className="text-dark-muted">Resultado:</span> <span className={`font-semibold ${trade.result_usd >= 0 ? 'text-green-400' : 'text-red-400'}`}>{trade.result_usd.toFixed(2)} USD</span></p>
+        </div>
+
+        <div className="flex justify-end space-x-3">
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button variant="primary" onClick={onConfirm} className="bg-red-600 hover:bg-red-700 border-red-600 hover:border-red-700 text-white hover:shadow-none">
+            Excluir
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
