@@ -1,1 +1,10 @@
 # RiskManagerX
+
+## Nota Importante sobre Variáveis de Ambiente em Produção
+
+Para que a busca de preços de ativos em tempo real funcione no site em produção (Vercel, Netlify, etc.), é crucial configurar as seguintes variáveis de ambiente diretamente no painel da sua plataforma de hospedagem:
+
+- `VITE_TWELVE_DATA_API_KEY`
+- `VITE_FINNHUB_API_KEY`
+
+O arquivo `.env` local é usado apenas para desenvolvimento e não é enviado para produção por motivos de segurança. Após adicionar as variáveis na sua plataforma de hospedagem, é necessário fazer um "redeploy" para que as alterações tenham efeito.
